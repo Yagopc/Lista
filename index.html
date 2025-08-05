@@ -355,7 +355,7 @@
             successMsg: document.getElementById('successMsg'),
             listContainer: document.getElementById('listContainer'),
             toggleListBtn: document.getElementById('toggleListBtn'),
-            savedList: document.getElementById('savedList')
+            savedList: document.getElementById('sa.vedList')
         };
 
         // Estado de la aplicación
@@ -522,13 +522,13 @@
                 actionsDiv.className = 'song-actions';
                 
                 const editBtn = document.createElement('button');
-                editBtn.className = 'action-btn';
-                editBtn.innerHTML = '<i class="fas fa-edit"></i>';
+editBtn.className = 'action-btn';
+editBtn.innerHTML = '<i class="fas fa-edit fa-lg"></i>'; // añade fa-lg para tamaño grande
                 editBtn.title = 'Editar título';
                 
                 const deleteBtn = document.createElement('button');
-                deleteBtn.className = 'action-btn delete';
-                deleteBtn.innerHTML = '<i class="fas fa-trash"></i>';
+deleteBtn.className = 'action-btn delete';
+deleteBtn.innerHTML = '<i class="fas fa-trash fa-lg"></i>'; // añade fa-lg
                 deleteBtn.title = 'Eliminar canción';
                 
                 actionsDiv.appendChild(editBtn);
