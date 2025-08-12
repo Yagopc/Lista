@@ -1,13 +1,5 @@
 [
   {
-    "url": "https://youtu.be/L0fr83yqHJo?si=WfITbw9WtUrHPDMB",
-    "title": "Cien misterios"
-  },
-  {
-    "url": "https://youtu.be/9OF69QR2jfM?si=ey6ehnycwiLVTIGv",
-    "title": "Cincuenta misterios sin resolver"
-  },
-  {
     "url": "https://youtu.be/5ZcuUThCN9Y?si=t0soLH40wVFbpCi-",
     "title": "Algo no encaja la historia JJ Benítez"
   },
@@ -63,6 +55,12 @@
     "title": "los límites de la longitud",
     "type": "audio"
   },
+    {
+    "url": "https://youtu.be/PBXKnAgczog?si=96TJiCLXM2rxEUIr",
+    "title": "antropología",
+    "type": "youTube"
+  },
+  
   {
     "url": "https://youtu.be/FL8wNX661Gw?si=gUKhAJfzzBeK3Fl3",
     "title": "misterio del universo",
