@@ -55,6 +55,14 @@
         .move-btn:hover {
             background-color: #37474f;
         }
+        .cast-btn {
+            background-color: #2196f3;
+            margin-left: 3px;
+            margin-right: 3px;
+        }
+        .cast-btn:hover {
+            background-color: #1769aa;
+        }
         textarea {
             width: 100%;
             height: 100px;
@@ -118,6 +126,8 @@
             cursor: default;
         }
     </style>
+    <!-- Google Cast Sender SDK -->
+    <script type="text/javascript" src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
 </head>
 <body>
     <div class="container">
@@ -134,6 +144,7 @@
             <button id="skipAdBtn">Saltar Publicidad</button>
             <button id="timerBtn">Temporizador</button>
             <button id="deleteBtn" class="delete-btn">Eliminar seleccionado</button>
+            <button id="castBtn" class="cast-btn">Enviar a Chromecast</button>
         </div>
         
         <div class="status" id="status">Estado: Listo</div>
@@ -164,6 +175,9 @@
         let timerTimeout = null;
         let timerEndTimestamp = null;
 
+        // Chromecast
+        let castSession = null;
+
         document.addEventListener('DOMContentLoaded', function() {
             loadPlaylistFromStorage();
             updateUrlListDisplay();
@@ -172,6 +186,74 @@
             const firstScriptTag = document.getElementsByTagName('script')[0];
             firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
             setInterval(updateTimerStatus, 1000);
+
+            // Chromecast: Inicialización
+            if (window.chrome && window.cast && window.cast.framework) {
+                initializeCastApi();
+            } else {
+                window['__onGCastApiAvailable'] = function(isAvailable) {
+                    if (isAvailable) {
+                        initializeCastApi();
+                    }
+                };
+            }
+        });
+
+        // Chromecast: Inicializar framework
+        function initializeCastApi() {
+            cast.framework.CastContext.getInstance().setOptions({
+                receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+                autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+            });
+        }
+
+        // Chromecast: Enviar vídeo actual
+        document.getElementById('castBtn').addEventListener('click', async function() {
+            if (currentVideoIndex === -1 || !playlist[currentVideoIndex]) {
+                updateStatus('No hay vídeo seleccionado para enviar');
+                return;
+            }
+            const video = playlist[currentVideoIndex];
+            const videoId = extractVideoId(video.url);
+            if (!videoId) {
+                updateStatus('URL de YouTube no válida');
+                return;
+            }
+
+            // YouTube casting: usar el receiver especializado de YouTube
+            // https://www.chromium.org/developers/how-tos/cast/youtube-casting/
+            // Si quieres enviar URLs genéricas, deberías usar el receptor por defecto y formato media genérico (no soportado para YouTube)
+            // Así que para vídeos de YouTube lo ideal es usar el receiver de YouTube.
+
+            // Por compatibilidad, se usará el YouTube receiver:
+            const YT_RECEIVER_APP_ID = '233637DE'; // Youtube app id
+            const context = cast.framework.CastContext.getInstance();
+            context.setOptions({
+                receiverApplicationId: YT_RECEIVER_APP_ID,
+                autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+            });
+
+            context.requestSession().then(function() {
+                const session = context.getCurrentSession();
+                if (!session) {
+                    updateStatus('No se pudo iniciar la sesión de Chromecast');
+                    return;
+                }
+                // Mandar el vídeo a Chromecast usando la API de YouTube
+                // https://developers.google.com/cast/docs/reference/messages#YouTube
+                // El mensaje es: { type: "flingVideo", data: { currentTime: {number}, videoId: {string} } }
+                const message = {
+                    type: "flingVideo",
+                    data: {
+                        videoId: videoId,
+                        currentTime: 0
+                    }
+                };
+                session.sendMessage('urn:x-cast:com.google.youtube.mdx', message);
+                updateStatus('Enviado a Chromecast: ' + (video.title || "desconocido"));
+            }).catch(function(error) {
+                updateStatus('Error al conectar con Chromecast: ' + error);
+            });
         });
 
         function onYouTubeIframeAPIReady() {
