@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Reproductor YouTube Móvil</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 10px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: 100%;
+        }
+        #player {
+            width: 100%;
+            aspect-ratio: 16/9;
+            background-color: #000;
+        }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            justify-content: center;
+        }
+        button {
+            padding: 8px 12px;
+            background-color: #ff0000;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #cc0000;
+        }
+        .delete-btn {
+            background-color: #757575;
+        }
+        .delete-btn:hover {
+            background-color: #c62828;
+        }
+        .move-btn {
+            background-color: #607d8b;
+            margin-left: 3px;
+            margin-right: 3px;
+        }
+        .move-btn:hover {
+            background-color: #37474f;
+        }
+        .cast-btn {
+            background-color: #2196f3;
+            margin-left: 3px;
+            margin-right: 3px;
+        }
+        .cast-btn:hover {
+            background-color: #1769aa;
+        }
+        .cineupdate-btn {
+            background-color: #9c27b0;
+            margin-left: 3px;
+            margin-right: 3px;
+        }
+        .cineupdate-btn:hover {
+            background-color: #7b1fa2;
+        }
+        textarea {
+            width: 100%;
+            height: 100px;
+            padding: 8px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            resize: vertical;
+        }
+        .url-list {
+            margin-top: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .url-list-content {
+            display: flex;
+            flex-direction: column;
+        }
+        .url-item {
+            display: flex;
+            align-items: center;
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            background: none;
+        }
+        .url-item:hover {
+            background-color: #f0f0f0;
+        }
+        .url-item.active {
+            background-color: #ffebee;
+            font-weight: bold;
+        }
+        .file-input {
+            display: none;
+        }
+        .file-label {
+            display: inline-block;
+            padding: 8px 12px;
+            background-color: #4285f4;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            text-align: center;
+            margin: 5px 0;
+        }
+        .status {
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+            margin: 5px 0;
+        }
+        .timer-active {
+            background-color: #ffa726 !important;
+            color: #333 !important;
+        }
+        .move-btn[disabled] {
+            opacity: 0.4;
+            cursor: default;
+        }
+    </style>
+    <!-- Google Cast Sender SDK -->
+    <script type="text/javascript" src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Reproductor YouTube</h1>
+        
+        <div id="player"></div>
+        
+        <div class="controls">
+            <button id="playBtn">Play</button>
+            <button id="pauseBtn">Pausa</button>
+            <button id="stopBtn">Stop</button>
+            <button id="nextBtn">Siguiente</button>
+            <button id="prevBtn">Anterior</button>
+            <button id="skipAdBtn">Saltar Publicidad</button>
+            <button id="timerBtn">Temporizador</button>
+            <button id="deleteBtn" class="delete-btn">Eliminar seleccionado</button>
+            <button id="castBtn" class="cast-btn">Enviar a Chromecast</button>
+            <button id="cineupdateBtn" class="cineupdate-btn">CineUpdate</button>
+        </div>
+        
+        <div class="status" id="status">Estado: Listo</div>
+        
+        <textarea id="urlInput" placeholder="Introduce URLs de YouTube, una por línea"></textarea>
+        
+        <div class="controls">
+            <button id="addBtn">Añadir a lista</button>
+            <button id="clearBtn">Limpiar lista</button>
+        </div>
+        
+        <label for="fileInput" class="file-label">Cargar lista desde archivo</label>
+        <input type="file" id="fileInput" class="file-input" accept=".txt,.json">
+        
+        <button id="saveFileBtn">Guardar lista en dispositivo</button>
+        
+        <div class="url-list">
+            <div class="url-list-content" id="urlList"></div>
+        </div>
+    </div>
+
+    <script>
+        let player;
+        let currentVideoIndex = -1;
+        let playlist = [];
+        let adInterval;
+        let isAdPlaying = false;
+        let timerTimeout = null;
+        let timerEndTimestamp = null;
+
+        // Chromecast
+        let castSession = null;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            loadPlaylistFromStorage();
+            updateUrlListDisplay();
+            const tag = document.createElement('script');
+            tag.src = "https://www.youtube.com/iframe_api";
+            const firstScriptTag = document.getElementsByTagName('script')[0];
+            firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+            setInterval(updateTimerStatus, 1000);
+
+            // Chromecast: Inicialización
+            if (window.chrome && window.cast && window.cast.framework) {
+                initializeCastApi();
+            } else {
+                window['__onGCastApiAvailable'] = function(isAvailable) {
+                    if (isAvailable) {
+                        initializeCastApi();
+                    }
+                };
+            }
+        });
+
+        // Chromecast: Inicializar framework
+        function initializeCastApi() {
+            cast.framework.CastContext.getInstance().setOptions({
+                receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+                autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+            });
+        }
+
+        // Chromecast: Enviar vídeo actual
+        document.getElementById('castBtn').addEventListener('click', async function() {
+            if (currentVideoIndex === -1 || !playlist[currentVideoIndex]) {
+                updateStatus('No hay vídeo seleccionado para enviar');
+                return;
+            }
+            const video = playlist[currentVideoIndex];
+            const videoId = extractVideoId(video.url);
+            if (!videoId) {
+                updateStatus('URL de YouTube no válida');
+                return;
+            }
+
+            // YouTube casting: usar el receiver especializado de YouTube
+            // https://www.chromium.org/developers/how-tos/cast/youtube-casting/
+            // Si quieres enviar URLs genéricas, deberías usar el receptor por defecto y formato media genérico (no soportado para YouTube)
+            // Así que para vídeos de YouTube lo ideal es usar el receiver de YouTube.
+
+            // Por compatibilidad, se usará el YouTube receiver:
+            const YT_RECEIVER_APP_ID = '233637DE'; // Youtube app id
+            const context = cast.framework.CastContext.getInstance();
+            context.setOptions({
+                receiverApplicationId: YT_RECEIVER_APP_ID,
+                autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+            });
+
+            context.requestSession().then(function() {
+                const session = context.getCurrentSession();
+                if (!session) {
+                    updateStatus('No se pudo iniciar la sesión de Chromecast');
+                    return;
+                }
+                // Mandar el vídeo a Chromecast usando la API de YouTube
+                // https://developers.google.com/cast/docs/reference/messages#YouTube
+                // El mensaje es: { type: "flingVideo", data: { currentTime: {number}, videoId: {string} } }
+                const message = {
+                    type: "flingVideo",
+                    data: {
+                        videoId: videoId,
+                        currentTime: 0
+                    }
+                };
+                session.sendMessage('urn:x-cast:com.google.youtube.mdx', message);
+                updateStatus('Enviado a Chromecast: ' + (video.title || "desconocido"));
+            }).catch(function(error) {
+                updateStatus('Error al conectar con Chromecast: ' + error);
+            });
+        });
+
+        // CineUpdate: Cargar lista desde URL externa
+        document.getElementById('cineupdateBtn').addEventListener('click', function() {
+            updateStatus('Cargando lista CineUpdate...');
+            
+            fetch('https://yagopc.github.io/Cine/Youtuberomanos.json')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Error al cargar la lista: ' + response.status);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (Array.isArray(data)) {
+                        // Procesar los datos y añadirlos a la playlist
+                        const newPlaylist = data.map(item => {
+                            if (typeof item === 'string') {
+                                return { title: "desconocido", url: item };
+                            }
+                            if (item.url && item.title) {
+                                return { title: item.title || "desconocido", url: item.url };
+                            }
+                            if (item.url) {
+                                return { title: "desconocido", url: item.url };
+                            }
+                            return null;
+                        }).filter(Boolean).filter(item => isYoutubeUrl(item.url));
+                        
+                        // Reemplazar la playlist actual
+                        playlist = newPlaylist;
+                        currentVideoIndex = -1;
+                        
+                        // Guardar en localStorage y actualizar UI
+                        savePlaylistToStorage();
+                        updateUrlListDisplay();
+                        updateStatus(`Lista CineUpdate cargada: ${playlist.length} vídeos`);
+                    } else {
+                        updateStatus('Formato de lista inválido');
+                    }
+                })
+                .catch(error => {
+                    updateStatus('Error: ' + error.message);
+                    console.error('Error al cargar CineUpdate:', error);
+                });
+        });
+
+        function onYouTubeIframeAPIReady() {
+            player = new YT.Player('player', {
+                height: '100%',
+                width: '100%',
+                events: {
+                    'onReady': onPlayerReady,
+                    'onStateChange': onPlayerStateChange
+                }
+            });
+        }
+        function onPlayerReady(event) {
+            updateStatus('Reproductor listo');
+        }
+        function onPlayerStateChange(event) {
+            if (event.data === YT.PlayerState.ENDED) {
+                playNextVideo();
+            }
+            if (event.data === YT.PlayerState.PLAYING) {
+                checkForAd();
+            }
+        }
+        function checkForAd() {
+            if (Math.random() < 0.3) {
+                simulateAd();
+            }
+        }
+        function simulateAd() {
+            isAdPlaying = true;
+            updateStatus('Anuncio detectado - reproduciendo...');
+            adInterval = setTimeout(() => {
+                skipAd();
+            }, 5000);
+        }
+        function skipAd() {
+            if (isAdPlaying) {
+                clearTimeout(adInterval);
+                isAdPlaying = false;
+                updateStatus('Anuncio saltado');
+                player.playVideo();
+            }
+        }
+
+        document.getElementById('timerBtn').addEventListener('click', function() {
+            let minutos = prompt('¿Cuántos minutos quieres que dure la reproducción? (Introduce un número mayor a 0)');
+            if (minutos === null) return;
+            minutos = parseInt(minutos);
+            if (isNaN(minutos) || minutos <= 0) {
+                updateStatus('Temporizador cancelado o valor inválido');
+                clearTimer();
+                return;
+            }
+            setTimer(minutos);
+        });
+        function setTimer(minutos) {
+            clearTimer();
+            const milisegundos = minutos * 60 * 1000;
+            timerEndTimestamp = Date.now() + milisegundos;
+            timerTimeout = setTimeout(() => {
+                player.pauseVideo();
+                updateStatus('Temporizador: reproducción detenida');
+                clearTimer();
+            }, milisegundos);
+            document.getElementById('timerBtn').classList.add('timer-active');
+            updateStatus(`Temporizador activado: ${minutos} minuto(s)`);
+        }
+        function clearTimer() {
+            if (timerTimeout) {
+                clearTimeout(timerTimeout);
+                timerTimeout = null;
+            }
+            timerEndTimestamp = null;
+            document.getElementById('timerBtn').classList.remove('timer-active');
+        }
+        function updateTimerStatus() {
+            if (timerEndTimestamp) {
+                const restante = timerEndTimestamp - Date.now();
+                if (restante > 0) {
+                    const min = Math.floor(restante / 60000);
+                    const sec = Math.floor((restante % 60000) / 1000);
+                    document.getElementById('timerBtn').textContent = `Temporizador (${min}:${sec.toString().padStart(2, '0')})`;
+                } else {
+                    document.getElementById('timerBtn').textContent = 'Temporizador';
+                    clearTimer();
+                }
+            } else {
+                document.getElementById('timerBtn').textContent = 'Temporizador';
+            }
+        }
+
+        document.getElementById('playBtn').addEventListener('click', function() {
+            if (currentVideoIndex === -1 && playlist.length > 0) {
+                playVideo(0);
+            } else if (currentVideoIndex !== -1) {
+                player.playVideo();
+                updateStatus('Reproduciendo');
+            }
+        });
+        document.getElementById('pauseBtn').addEventListener('click', function() {
+            player.pauseVideo();
+            updateStatus('Pausado');
+        });
+        document.getElementById('stopBtn').addEventListener('click', function() {
+            player.stopVideo();
+            currentVideoIndex = -1;
+            updateStatus('Detenido');
+            highlightCurrentVideo();
+        });
+        document.getElementById('nextBtn').addEventListener('click', playNextVideo);
+        document.getElementById('prevBtn').addEventListener('click', playPreviousVideo);
+        document.getElementById('skipAdBtn').addEventListener('click', skipAd);
+
+        document.getElementById('deleteBtn').addEventListener('click', function() {
+            if (currentVideoIndex === -1) {
+                updateStatus('No hay ningún elemento seleccionado');
+                return;
+            }
+            const removed = playlist.splice(currentVideoIndex, 1);
+            if (removed.length > 0) {
+                updateStatus(`Eliminado: ${removed[0].title || removed[0].url}`);
+            }
+            if (currentVideoIndex >= playlist.length) {
+                currentVideoIndex = playlist.length - 1;
+            }
+            savePlaylistToStorage();
+            updateUrlListDisplay();
+            highlightCurrentVideo();
+        });
+
+        document.getElementById('addBtn').addEventListener('click', function() {
+            // Permitir varias líneas, cada línea: url o url|título
+            const lines = document.getElementById('urlInput').value.trim().split('\n');
+            let added = 0;
+            for (let line of lines) {
+                line = line.trim();
+                if (!line) continue;
+                let url = "", title = "";
+                if (line.includes('|')) {
+                    // Formato url|título
+                    const parts = line.split('|');
+                    url = parts[0].trim();
+                    title = parts.slice(1).join('|').trim();
+                } else {
+                    url = line;
+                    title = "";
+                }
+                if (isYoutubeUrl(url) && !playlist.some(item => item.url === url)) {
+                    if (!title) {
+                        // Preguntar por el título si no está
+                        title = prompt(`Introduce el título para el vídeo:\n${url}`) || "desconocido";
+                        title = title.trim() ? title : "desconocido";
+                    }
+                    playlist.push({ title, url });
+                    added++;
+                }
+            }
+            if (added > 0) {
+                savePlaylistToStorage();
+                updateUrlListDisplay();
+                updateStatus(`Añadidos ${added} vídeos`);
+            } else {
+                updateStatus('No se añadió ningún enlace nuevo');
+            }
+            document.getElementById('urlInput').value = '';
+        });
+
+        document.getElementById('clearBtn').addEventListener('click', function() {
+            playlist = [];
+            currentVideoIndex = -1;
+            savePlaylistToStorage();
+            updateUrlListDisplay();
+            updateStatus('Lista borrada');
+        });
+
+        document.getElementById('saveFileBtn').addEventListener('click', function() {
+            savePlaylistToFile();
+        });
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const content = e.target.result;
+                    try {
+                        const data = JSON.parse(content);
+                        if (Array.isArray(data)) {
+                            playlist = data.map(item => {
+                                if (typeof item === 'string') {
+                                    return { title: "desconocido", url: item };
+                                }
+                                if (item.url && item.title) {
+                                    return { title: item.title || "desconocido", url: item.url };
+                                }
+                                if (item.url) {
+                                    return { title: "desconocido", url: item.url };
+                                }
+                                return null;
+                            }).filter(Boolean).filter(item => isYoutubeUrl(item.url));
+                        }
+                    } catch {
+                        // No es JSON, tratar como texto plano
+                        playlist = content.split('\n')
+                            .map(line => {
+                                line = line.trim();
+                                if (!line) return null;
+                                if (line.includes('|')) {
+                                    const parts = line.split('|');
+                                    return {
+                                        url: parts[0].trim(),
+                                        title: (parts.slice(1).join('|').trim() || "desconocido")
+                                    };
+                                } else {
+                                    return { url: line, title: "desconocido" };
+                                }
+                            })
+                            .filter(Boolean)
+                            .filter(item => isYoutubeUrl(item.url));
+                    }
+                    savePlaylistToStorage();
+                    updateUrlListDisplay();
+                    updateStatus(`Lista cargada desde archivo: ${file.name}`);
+                } catch (error) {
+                    updateStatus('Error al cargar el archivo');
+                    console.error(error);
+                }
+            };
+            reader.readAsText(file);
+        });
+        function savePlaylistToFile() {
+            if (playlist.length === 0) {
+                updateStatus('No hay videos para guardar');
+                return;
+            }
+            const blob = new Blob([JSON.stringify(playlist, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'youtube_playlist.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            updateStatus('Lista guardada en dispositivo');
+        }
+
+        function savePlaylistToStorage() {
+            localStorage.setItem('youtubePlaylist', JSON.stringify(playlist));
+        }
+        function loadPlaylistFromStorage() {
+            const savedPlaylist = localStorage.getItem('youtubePlaylist');
+            if (savedPlaylist) {
+                try {
+                    const data = JSON.parse(savedPlaylist);
+                    playlist = data.map(item => {
+                        if (typeof item === 'string') {
+                            return { title: "desconocido", url: item };
+                        }
+                        if (item.url && item.title) {
+                            return { title: item.title || "desconocido", url: item.url };
+                        }
+                        if (item.url) {
+                            return { title: "desconocido", url: item.url };
+                        }
+                        return null;
+                    }).filter(Boolean).filter(item => isYoutubeUrl(item.url));
+                } catch (e) {
+                    playlist = [];
+                }
+            }
+        }
+
+        function moveVideo(index, direction) {
+            if (direction === 'up' && index > 0) {
+                const tmp = playlist[index];
+                playlist[index] = playlist[index - 1];
+                playlist[index - 1] = tmp;
+                if (currentVideoIndex === index) currentVideoIndex--;
+                else if (currentVideoIndex === index - 1) currentVideoIndex++;
+                savePlaylistToStorage();
+                updateUrlListDisplay();
+                highlightCurrentVideo();
+            }
+            if (direction === 'down' && index < playlist.length - 1) {
+                const tmp = playlist[index];
+                playlist[index] = playlist[index + 1];
+                playlist[index + 1] = tmp;
+                if (currentVideoIndex === index) currentVideoIndex++;
+                else if (currentVideoIndex === index + 1) currentVideoIndex--;
+                savePlaylistToStorage();
+                updateUrlListDisplay();
+                highlightCurrentVideo();
+            }
+        }
+
+        function updateUrlListDisplay() {
+            const urlListElement = document.getElementById('urlList');
+            urlListElement.innerHTML = '';
+            if (playlist.length === 0) {
+                urlListElement.innerHTML = '<div class="url-item">No hay videos en la lista</div>';
+                return;
+            }
+            playlist.forEach((item, index) => {
+                const urlElement = document.createElement('div');
+                urlElement.className = 'url-item' + (index === currentVideoIndex ? ' active' : '');
+                urlElement.title = item.url;
+
+                // Botón subir
+                const upBtn = document.createElement('button');
+                upBtn.textContent = '↑';
+                upBtn.className = 'move-btn';
+                upBtn.disabled = index === 0;
+                upBtn.title = 'Mover arriba';
+                upBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    moveVideo(index, 'up');
+                });
+
+                // Botón bajar
+                const downBtn = document.createElement('button');
+                downBtn.textContent = '↓';
+                downBtn.className = 'move-btn';
+                downBtn.disabled = index === playlist.length - 1;
+                downBtn.title = 'Mover abajo';
+                downBtn.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    moveVideo(index, 'down');
+                });
+
+                // Texto del título
+                const text = document.createElement('span');
+                text.textContent = `${index + 1}. ${item.title || "desconocido"}`;
+                text.style.flex = '1';
+
+                urlElement.appendChild(upBtn);
+                urlElement.appendChild(downBtn);
+                urlElement.appendChild(text);
+
+                urlElement.addEventListener('click', () => playVideo(index));
+                urlListElement.appendChild(urlElement);
+            });
+        }
+        function highlightCurrentVideo() {
+            const items = document.querySelectorAll('.url-item');
+            items.forEach((item, index) => {
+                item.classList.toggle('active', index === currentVideoIndex);
+            });
+        }
+        function updateStatus(message) {
+            document.getElementById('status').textContent = `Estado: ${message}`;
+        }
+        function isYoutubeUrl(url) {
+            return url.includes('youtube.com/watch?v=') || url.includes('youtu.be/');
+        }
+        function extractVideoId(url) {
+            const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+            const match = url.match(regExp);
+            return (match && match[2].length === 11) ? match[2] : null;
+        }
+        function playNextVideo() {
+            if (playlist.length === 0) return;
+            const nextIndex = currentVideoIndex + 1;
+            if (nextIndex < playlist.length) {
+                playVideo(nextIndex);
+            } else {
+                updateStatus('Fin de la lista de reproducción');
+                currentVideoIndex = -1;
+                highlightCurrentVideo();
+            }
+        }
+        function playPreviousVideo() {
+            if (playlist.length === 0 || currentVideoIndex <= 0) return;
+            playVideo(currentVideoIndex - 1);
+        }
+        function playVideo(index) {
+            if (index < 0 || index >= playlist.length) return;
+            const videoId = extractVideoId(playlist[index].url);
+            if (!videoId) return;
+            player.loadVideoById(videoId);
+            currentVideoIndex = index;
+            updateStatus(`Reproduciendo: ${playlist[index].title || "desconocido"}`);
+            highlightCurrentVideo();
+        }
+    </script>
+</body>
+</html>
