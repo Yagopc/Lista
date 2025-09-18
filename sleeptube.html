@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Reproductor de Listas M3U & Multiplataforma</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 10px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-width: 100%;
+        }
+        #player {
+            width: 100%;
+            aspect-ratio: 16/9;
+            background-color: #000;
+            margin-bottom: 10px;
+        }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            justify-content: center;
+        }
+        button {
+            padding: 8px 12px;
+            background-color: #ff0000;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #cc0000;
+        }
+        .delete-btn {
+            background-color: #757575;
+        }
+        .delete-btn:hover {
+            background-color: #c62828;
+        }
+        .move-btn {
+            background-color: #607d8b;
+            margin-left: 3px;
+            margin-right: 3px;
+        }
+        .move-btn:hover {
+            background-color: #37474f;
+        }
+        .cast-btn {
+            background-color: #2196f3;
+            margin-left: 3px;
+            margin-right: 3px;
+        }
+        .cast-btn:hover {
+            background-color: #1769aa;
+        }
+        .cineupdate-btn {
+            background-color: #9c27b0;
+            margin-left: 3px;
+            margin-right: 3px;
+        }
+        .cineupdate-btn:hover {
+            background-color: #7b1fa2;
+        }
+        textarea {
+            width: 100%;
+            height: 100px;
+            padding: 8px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            resize: vertical;
+        }
+        .url-list {
+            margin-top: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .url-list-content {
+            display: flex;
+            flex-direction: column;
+        }
+        .url-item {
+            display: flex;
+            align-items: center;
+            padding: 8px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            background: none;
+        }
+        .url-item:hover {
+            background-color: #f0f0f0;
+        }
+        .url-item.active {
+            background-color: #ffebee;
+            font-weight: bold;
+        }
+        .file-input {
+            display: none;
+        }
+        .file-label {
+            display: inline-block;
+            padding: 8px 12px;
+            background-color: #4285f4;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            text-align: center;
+            margin: 5px 0;
+        }
+        .status {
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+            margin: 5px 0;
+        }
+        .timer-active {
+            background-color: #ffa726 !important;
+            color: #333 !important;
+        }
+        .move-btn[disabled] {
+            opacity: 0.4;
+            cursor: default;
+        }
+        .m3u-fields {
+            font-size: 0.85em;
+            color: #555;
+            margin-left: 8px;
+            margin-bottom: 2px;
+        }
+    </style>
+    <!-- Google Cast Sender SDK -->
+    <script type="text/javascript" src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Reproductor Multiplataforma (M3U/M3U8)</h1>
+        
+        <div id="player"></div>
+        
+        <div class="controls">
+            <button id="playBtn">Play</button>
+            <button id="pauseBtn">Pausa</button>
+            <button id="stopBtn">Stop</button>
+            <button id="nextBtn">Siguiente</button>
+            <button id="prevBtn">Anterior</button>
+            <button id="skipAdBtn">Saltar Publicidad</button>
+            <button id="timerBtn">Temporizador</button>
+            <button id="deleteBtn" class="delete-btn">Eliminar seleccionado</button>
+            <button id="castBtn" class="cast-btn">Enviar a Chromecast</button>
+            
+            <button id="cineupdateBtn" class="cineupdate-btn">CineUpdate</button>
+        </div>
+        <label for="cineupdateFileInput" class="file-label">Cargar archivo Local</label>
+<input type="file" id="cineupdateFileInput" class="file-input" accept=".m3u,.m3u8,.json" style="display: none;">
+        
+        <div class="status" id="status">Estado: Listo</div>
+        
+        <textarea id="urlInput" placeholder="Introduce URLs/M3U/M3U8, una por línea, o pega el contenido M3U"></textarea>
+        <!-- Agrega esto justo después del textarea de URLs -->
+<input type="text" id="videoTitle" placeholder="Título del video (opcional)" style="width: 100%; padding: 8px; margin-bottom: 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px;">
+        
+        <div class="controls">
+            <button id="addBtn">Añadir a lista</button>
+            <button id="clearBtn">Limpiar lista</button>
+        </div>
+        
+        <label for="fileInput" class="file-label">Cargar lista (.m3u, .m3u8, .txt, .json)</label>
+        <input type="file" id="fileInput" class="file-input" accept=".m3u,.m3u8,.txt,.json">
+        
+        <button id="saveFileBtn">Guardar lista en dispositivo</button>
+        <button id="exportM3UBtn">Exportar como M3U</button>
+        
+        <div class="url-list">
+            <div class="url-list-content" id="urlList"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentVideoIndex = -1;
+        let playlist = [];
+        let adInterval;
+        let isAdPlaying = false;
+        let timerTimeout = null;
+        let timerEndTimestamp = null;
+        let playerType = null; // 'youtube', 'dailymotion', 'okru'
+        let player = null;
+        let playerIframe = null;
+
+        // Chromecast
+        let castSession = null;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            loadPlaylistFromStorage();
+            updateUrlListDisplay();
+            setInterval(updateTimerStatus, 1000);
+
+            // Chromecast: Inicialización
+            if (window.chrome && window.cast && window.cast.framework) {
+                initializeCastApi();
+            } else {
+                window['__onGCastApiAvailable'] = function(isAvailable) {
+                    if (isAvailable) {
+                        initializeCastApi();
+                    }
+                };
+            }
+        });
+
+        // Chromecast: Inicializar framework
+        function initializeCastApi() {
+            cast.framework.CastContext.getInstance().setOptions({
+                receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+                autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+            });
+        }
+
+        // Chromecast: Enviar vídeo actual (solo YouTube soportado nativamente)
+        document.getElementById('castBtn').addEventListener('click', async function() {
+            if (currentVideoIndex === -1 || !playlist[currentVideoIndex]) {
+                updateStatus('No hay vídeo seleccionado para enviar');
+                return;
+            }
+            const video = playlist[currentVideoIndex];
+
+            if (isYoutubeUrl(video.url)) {
+                const videoId = extractYoutubeId(video.url);
+                if (!videoId) {
+                    updateStatus('URL de YouTube no válida');
+                    return;
+                }
+                const YT_RECEIVER_APP_ID = '233637DE'; // Youtube app id
+                const context = cast.framework.CastContext.getInstance();
+                context.setOptions({
+                    receiverApplicationId: YT_RECEIVER_APP_ID,
+                    autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+                });
+                context.requestSession().then(function() {
+                    const session = context.getCurrentSession();
+                    if (!session) {
+                        updateStatus('No se pudo iniciar la sesión de Chromecast');
+                        return;
+                    }
+                    const message = {
+                        type: "flingVideo",
+                        data: {
+                            videoId: videoId,
+                            currentTime: 0
+                        }
+                    };
+                    session.sendMessage('urn:x-cast:com.google.youtube.mdx', message);
+                    updateStatus('Enviado a Chromecast: ' + (video.title || "desconocido"));
+                }).catch(function(error) {
+                    updateStatus('Error al conectar con Chromecast: ' + error);
+                });
+            } else {
+                updateStatus('Solo se soporta Chromecast nativo para YouTube');
+            }
+        });
+
+        // CineUpdate: cargar lista desde URL externa en formato JSON
+      
+
+
+
+document.getElementById('cineupdateBtn').addEventListener('click', function() {
+    updateStatus('Cargando lista CineUpdate desde URL...');
+    fetch('https://yagopc.github.io/Cine/doctv.m3u')  // URL del archivo M3U
+        .then(response => {
+            if (!response.ok) throw new Error('Error al cargar la lista: ' + response.status);
+            return response.text();  // Cambia a .text() porque es M3U, no JSON
+        })
+        .then(m3uContent => {
+            // Parsear el contenido M3U
+            const parsedList = parseM3U(m3uContent);
+            
+            if (parsedList.length > 0) {
+                playlist = parsedList;
+                currentVideoIndex = -1;
+                savePlaylistToStorage();
+                updateUrlListDisplay();
+                updateStatus(`Lista CineUpdate cargada: ${playlist.length} vídeos`);
+            } else {
+                updateStatus('El archivo M3U no contiene entradas válidas');
+            }
+        })
+        .catch(error => {
+            updateStatus('Error: ' + error.message);
+            console.error('Error al cargar CineUpdate:', error);
+        });
+});
+
+
+
+// Agrega el evento change para el input file de CineUpdate
+document.getElementById('cineupdateFileInput').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const ext = file.name.split('.').pop().toLowerCase();
+    const reader = new FileReader();
+    
+    reader.onload = function(e) {
+        try {
+            const content = e.target.result;
+            let loadedPlaylist = [];
+            
+            if (ext === 'json') {
+                // Procesar JSON
+                const data = JSON.parse(content);
+                if (Array.isArray(data)) {
+                    loadedPlaylist = data.map(item => {
+                        if (typeof item === 'string') {
+                            return parseUrlOrM3UEntry(item);
+                        }
+                        if (item.url && item.title) {
+                            return { title: item.title || "desconocido", url: item.url };
+                        }
+                        if (item.url) {
+                            return { title: "desconocido", url: item.url };
+                        }
+                        return null;
+                    }).filter(Boolean);
+                }
+            } else if (ext === 'm3u' || ext === 'm3u8' || content.startsWith('#EXTM3U')) {
+                // Procesar M3U/M3U8
+                loadedPlaylist = parseM3U(content);
+            } else {
+                updateStatus('Formato de archivo no soportado para CineUpdate');
+                return;
+            }
+            
+            if (loadedPlaylist.length > 0) {
+                playlist = loadedPlaylist;
+                currentVideoIndex = -1;
+                savePlaylistToStorage();
+                updateUrlListDisplay();
+                updateStatus(`Lista CineUpdate cargada: ${playlist.length} vídeos`);
+            } else {
+                updateStatus('El archivo no contiene entradas válidas');
+            }
+            
+        } catch (error) {
+            updateStatus('Error al cargar el archivo CineUpdate: ' + error.message);
+            console.error('Error al cargar CineUpdate:', error);
+        }
+    };
+    
+    reader.readAsText(file);
+    // Limpiar el input para permitir cargar el mismo archivo de nuevo
+    e.target.value = '';
+});
+
+
+  
+        document.getElementById('deleteBtn').addEventListener('click', function() {
+            if (currentVideoIndex === -1) {
+                updateStatus('No hay ningún elemento seleccionado');
+                return;
+            }
+            const removed = playlist.splice(currentVideoIndex, 1);
+            if (removed.length > 0) {
+                updateStatus(`Eliminado: ${removed[0].title || removed[0].url}`);
+            }
+            if (currentVideoIndex >= playlist.length) {
+                currentVideoIndex = playlist.length - 1;
+            }
+            savePlaylistToStorage();
+            updateUrlListDisplay();
+            highlightCurrentVideo();
+            stopPlayer();
+        });
+
+        // Controles de navegación/reproducción
+        document.getElementById('playBtn').addEventListener('click', function() {
+            if (currentVideoIndex === -1 && playlist.length > 0) {
+                playVideo(0);
+            } else if (currentVideoIndex !== -1) {
+                resumePlayer();
+                updateStatus('Reproduciendo');
+            }
+        });
+        document.getElementById('pauseBtn').addEventListener('click', function() {
+            pausePlayer();
+            updateStatus('Pausado');
+        });
+        document.getElementById('stopBtn').addEventListener('click', function() {
+            stopPlayer();
+            currentVideoIndex = -1;
+            updateStatus('Detenido');
+            highlightCurrentVideo();
+        });
+        document.getElementById('nextBtn').addEventListener('click', playNextVideo);
+        document.getElementById('prevBtn').addEventListener('click', playPreviousVideo);
+        document.getElementById('skipAdBtn').addEventListener('click', skipAd);
+
+        // Temporizador
+        document.getElementById('timerBtn').addEventListener('click', function() {
+            let minutos = prompt('¿Cuántos minutos quieres que dure la reproducción? (Introduce un número mayor a 0)');
+            if (minutos === null) return;
+            minutos = parseInt(minutos);
+            if (isNaN(minutos) || minutos <= 0) {
+                updateStatus('Temporizador cancelado o valor inválido');
+                clearTimer();
+                return;
+            }
+            setTimer(minutos);
+        });
+        function setTimer(minutos) {
+            clearTimer();
+            const milisegundos = minutos * 60 * 1000;
+            timerEndTimestamp = Date.now() + milisegundos;
+            timerTimeout = setTimeout(() => {
+                pausePlayer();
+                updateStatus('Temporizador: reproducción detenida');
+                clearTimer();
+            }, milisegundos);
+            document.getElementById('timerBtn').classList.add('timer-active');
+            updateStatus(`Temporizador activado: ${minutos} minuto(s)`);
+        }
+        function clearTimer() {
+            if (timerTimeout) clearTimeout(timerTimeout);
+            timerTimeout = null;
+            timerEndTimestamp = null;
+            document.getElementById('timerBtn').classList.remove('timer-active');
+        }
+        function updateTimerStatus() {
+            if (timerEndTimestamp) {
+                const restante = timerEndTimestamp - Date.now();
+                if (restante > 0) {
+                    const min = Math.floor(restante / 60000);
+                    const sec = Math.floor((restante % 60000) / 1000);
+                    document.getElementById('timerBtn').textContent = `Temporizador (${min}:${sec.toString().padStart(2, '0')})`;
+                } else {
+                    document.getElementById('timerBtn').textContent = 'Temporizador';
+                    clearTimer();
+                }
+            } else {
+                document.getElementById('timerBtn').textContent = 'Temporizador';
+            }
+        }
+
+        // --- REPRODUCTOR MULTIPLATAFORMA ---
+        function stopPlayer() {
+            const playerDiv = document.getElementById('player');
+            playerDiv.innerHTML = '';
+            playerType = null;
+            player = null;
+            playerIframe = null;
+        }
+        function pausePlayer() {
+            if (playerType === 'youtube' && player) {
+                player.pauseVideo();
+            } else if (playerType === 'dailymotion' && playerIframe) {
+                playerIframe.contentWindow.postMessage({ command: 'pause' }, '*');
+            } else if (playerType === 'okru' && playerIframe) {
+                playerIframe.contentWindow.postMessage('video:pause', '*');
+            }
+        }
+        function resumePlayer() {
+            if (playerType === 'youtube' && player) {
+                player.playVideo();
+            } else if (playerType === 'dailymotion' && playerIframe) {
+                playerIframe.contentWindow.postMessage({ command: 'play' }, '*');
+            } else if (playerType === 'okru' && playerIframe) {
+                playerIframe.contentWindow.postMessage('video:play', '*');
+            }
+        }
+
+        function playNextVideo() {
+            if (playlist.length === 0) return;
+            const nextIndex = currentVideoIndex + 1;
+            if (nextIndex < playlist.length) {
+                playVideo(nextIndex);
+            } else {
+                updateStatus('Fin de la lista de reproducción');
+                currentVideoIndex = -1;
+                highlightCurrentVideo();
+                stopPlayer();
+            }
+        }
+        function playPreviousVideo() {
+            if (playlist.length === 0 || currentVideoIndex <= 0) return;
+            playVideo(currentVideoIndex - 1);
+        }
+        function playVideo(index) {
+            if (index < 0 || index >= playlist.length) return;
+            currentVideoIndex = index;
+            const entry = playlist[index];
+            stopPlayer();
+            const playerDiv = document.getElementById('player');
+            let embedUrl = '';
+            if (isYoutubeUrl(entry.url)) {
+                playerType = 'youtube';
+                // Cargar el iframe API si no está
+                if (!window.YT || !window.YT.Player) {
+                    const tag = document.createElement('script');
+                    tag.src = "https://www.youtube.com/iframe_api";
+                    document.body.appendChild(tag);
+                    window.onYouTubeIframeAPIReady = function() {
+                        loadYoutubeVideo(entry.url, entry.title);
+                    };
+                } else {
+                    loadYoutubeVideo(entry.url, entry.title);
+                }
+            } else if (isDailymotionUrl(entry.url)) {
+                playerType = 'dailymotion';
+                embedUrl = getDailymotionEmbedUrl(entry.url);
+                playerDiv.innerHTML = `<iframe id="dailymotion-iframe" src="${embedUrl}" width="100%" height="100%" frameborder="0" allowfullscreen allow="autoplay"></iframe>`;
+                playerIframe = document.getElementById('dailymotion-iframe');
+                updateStatus(`Reproduciendo (Dailymotion): ${entry.title || "desconocido"}`);
+                // Simular autoplay en DM (algunos navegadores requieren interacción)
+            } else if (isOkruUrl(entry.url)) {
+                playerType = 'okru';
+                embedUrl = getOkruEmbedUrl(entry.url);
+                playerDiv.innerHTML = `<iframe id="okru-iframe" src="${embedUrl}" width="100%" height="100%" frameborder="0" allowfullscreen allow="autoplay"></iframe>`;
+                playerIframe = document.getElementById('okru-iframe');
+                updateStatus(`Reproduciendo (OK.ru): ${entry.title || "desconocido"}`);
+            } else {
+                updateStatus('Enlace no soportado');
+                stopPlayer();
+                return;
+            }
+            highlightCurrentVideo();
+        }
+
+        function loadYoutubeVideo(url, title) {
+    const playerDiv = document.getElementById('player');
+    playerDiv.innerHTML = `<div id="ytplayer"></div>`;
+    const videoId = extractYoutubeId(url);
+    
+    // Para Shorts, usar el player normal pero con parámetros específicos
+    const isShort = url.includes('youtube.com/shorts/');
+    const playerVars = isShort ? { 
+        playerVars: { 
+            'playsinline': 1,
+            'rel': 0,
+            'modestbranding': 1
+        }
+    } : {};
+    
+    player = new YT.Player('ytplayer', {
+        width: '100%',
+        height: '100%',
+        videoId: videoId,
+        ...playerVars,
+        events: {
+            'onReady': function() {
+                updateStatus(`Reproduciendo (YouTube${isShort ? ' Shorts' : ''}): ${title || "desconocido"}`);
+                player.playVideo();
+            },
+            'onStateChange': function(event) {
+                if (event.data === YT.PlayerState.ENDED) playNextVideo();
+            }
+        }
+    });
+}
+
+        // Ad skip simulation (for all platforms)
+        function skipAd() {
+            if (isAdPlaying) {
+                clearTimeout(adInterval);
+                isAdPlaying = false;
+                updateStatus('Anuncio saltado');
+                resumePlayer();
+            }
+        }
+
+        // --- PARSERS Y UTILIDADES ---
+        function parseM3U(content) {
+            // Devuelve lista de objetos {title, url, tvgId, tvgName, groupTitle, tvgLogo}
+            const lines = content.split(/\r?\n/).map(l => l.trim());
+            const entries = [];
+            let currentMeta = {};
+            for (let i = 0; i < lines.length; ++i) {
+                const line = lines[i];
+                if (line.startsWith('#EXTINF:')) {
+                    // Extraer metadatos
+                    const meta = {};
+                    const metaMatch = line.match(/tvg-id="([^"]*)"/);
+                    if (metaMatch) meta.tvgId = metaMatch[1];
+                    const nameMatch = line.match(/tvg-name="([^"]*)"/);
+                    if (nameMatch) meta.tvgName = nameMatch[1];
+                    const logoMatch = line.match(/tvg-logo="([^"]*)"/);
+                    if (logoMatch) meta.tvgLogo = logoMatch[1];
+                    const groupMatch = line.match(/group-title="([^"]*)"/);
+                    if (groupMatch) meta.groupTitle = groupMatch[1];
+                    const afterComma = line.split(',').pop().trim();
+                    meta.title = afterComma || meta.tvgName || "desconocido";
+                    currentMeta = meta;
+                } else if (line && !line.startsWith('#')) {
+                    // URL real
+                    entries.push({
+                        ...currentMeta,
+                        url: line
+                    });
+                    currentMeta = {};
+                }
+            }
+            return entries.filter(e => e.url);
+        }
+        function exportAsM3U(list) {
+            let m3u = '#EXTM3U\n';
+            for (const entry of list) {
+                m3u += `#EXTINF:-1`;
+                if (entry.tvgId) m3u += ` tvg-id="${entry.tvgId}"`;
+                if (entry.tvgName) m3u += ` tvg-name="${entry.tvgName}"`;
+                if (entry.tvgLogo) m3u += ` tvg-logo="${entry.tvgLogo}"`;
+                if (entry.groupTitle) m3u += ` group-title="${entry.groupTitle}"`;
+                m3u += `,${entry.title || entry.tvgName || "desconocido"}\n`;
+                m3u += `${entry.url}\n`;
+            }
+            return m3u;
+        }
+        function parseUrlOrM3UEntry(line) {
+    if (!line) return null;
+    
+    // Si la línea contiene "|", separar URL y título
+    if (line.includes('|')) {
+        const parts = line.split('|');
+        return {
+            url: parts[0].trim(),
+            title: (parts.slice(1).join('|').trim() || "desconocido")
+        };
+    }
+    
+    // Si es sólo URL, devolver con título por defecto
+    if (line.startsWith('http')) {
+        return { title: "desconocido", url: line };
+    }
+    
+    return null;
+}
+        function savePlaylistToStorage() {
+            localStorage.setItem('playlistMulti', JSON.stringify(playlist));
+        }
+        function loadPlaylistFromStorage() {
+            const saved = localStorage.getItem('playlistMulti');
+            if (saved) {
+                try {
+                    playlist = JSON.parse(saved);
+                } catch { playlist = []; }
+            }
+        }
+
+        // --- DETECCIÓN Y EXTRACCIÓN DE PLATAFORMAS ---
+        function isYoutubeUrl(url) {
+    return /(youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/)/.test(url);
+}
+        
+        function isDailymotionUrl(url) {
+            return /dailymotion\.com\/video\//.test(url);
+        }
+        function isOkruUrl(url) {
+            return /ok\.ru\/video\//.test(url);
+        }
+        function extractYoutubeId(url) {
+    // Shorts: https://www.youtube.com/shorts/VIDEO_ID
+    if (url.includes('youtube.com/shorts/')) {
+        const match = url.match(/youtube\.com\/shorts\/([^#&?]*)/);
+        return (match && match[1]) ? match[1] : null;
+    }
+    
+    // Videos normales: existing logic
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
+}
+        function getDailymotionEmbedUrl(url) {
+            // https://www.dailymotion.com/video/x8z4kpo -> https://www.dailymotion.com/embed/video/x8z4kpo
+            const match = url.match(/dailymotion.com\/video\/([a-zA-Z0-9]+)/);
+            if (match) return `https://www.dailymotion.com/embed/video/${match[1]}?autoplay=1`;
+            return url;
+        }
+        function getOkruEmbedUrl(url) {
+            // https://ok.ru/video/12345 -> https://ok.ru/videoembed/12345
+            return url.replace('/video/', '/videoembed/');
+        }
+
+        // --- LISTA Y UI ---
+        function moveVideo(index, direction) {
+            if (direction === 'up' && index > 0) {
+                [playlist[index], playlist[index - 1]] = [playlist[index - 1], playlist[index]];
+                if (currentVideoIndex === index) currentVideoIndex--;
+                else if (currentVideoIndex === index - 1) currentVideoIndex++;
+                savePlaylistToStorage();
+                updateUrlListDisplay();
+                highlightCurrentVideo();
+            }
+            if (direction === 'down' && index < playlist.length - 1) {
+                [playlist[index], playlist[index + 1]] = [playlist[index + 1], playlist[index]];
+                if (currentVideoIndex === index) currentVideoIndex++;
+                else if (currentVideoIndex === index + 1) currentVideoIndex--;
+                savePlaylistToStorage();
+                updateUrlListDisplay();
+                highlightCurrentVideo();
+            }
+        }
+        function updateUrlListDisplay() {
+    const urlListElement = document.getElementById('urlList');
+    urlListElement.innerHTML = '';
+    
+    if (playlist.length === 0) {
+        urlListElement.innerHTML = '<div class="url-item">No hay videos en la lista</div>';
+        return;
+    }
+    
+    playlist.forEach((item, index) => {
+        const urlElement = document.createElement('div');
+        urlElement.className = 'url-item' + (index === currentVideoIndex ? ' active' : '');
+        urlElement.title = item.url;
+
+        // Botón subir
+        const upBtn = document.createElement('button');
+        upBtn.textContent = '↑';
+        upBtn.className = 'move-btn';
+        upBtn.disabled = index === 0;
+        upBtn.title = 'Mover arriba';
+        upBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            moveVideo(index, 'up');
+        });
+
+        // Botón bajar
+        const downBtn = document.createElement('button');
+        downBtn.textContent = '↓';
+        downBtn.className = 'move-btn';
+        downBtn.disabled = index === playlist.length - 1;
+        downBtn.title = 'Mover abajo';
+        downBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            moveVideo(index, 'down');
+        });
+
+        // Texto del título
+        const text = document.createElement('span');
+        text.textContent = `${index + 1}. ${item.title || item.tvgName || "desconocido"}`;
+        text.style.flex = '1';
+
+        urlElement.appendChild(upBtn);
+        urlElement.appendChild(downBtn);
+        urlElement.appendChild(text);
+
+        // Meta info (M3U)
+        if (item.groupTitle || item.tvgName || item.tvgId) {
+            const meta = document.createElement('div');
+            meta.className = 'm3u-fields';
+            meta.textContent = [
+                item.groupTitle ? `Grupo: ${item.groupTitle}` : '',
+                item.tvgName ? `Nombre: ${item.tvgName}` : '',
+                item.tvgId ? `ID: ${item.tvgId}` : ''
+            ].filter(Boolean).join(' | ');
+            urlElement.appendChild(meta);
+        }
+
+        urlElement.addEventListener('click', () => playVideo(index));
+        urlListElement.appendChild(urlElement);
+    });
+}
+        function highlightCurrentVideo() {
+            const items = document.querySelectorAll('.url-item');
+            items.forEach((item, index) => {
+                item.classList.toggle('active', index === currentVideoIndex);
+            });
+        }
+        function updateStatus(message) {
+            document.getElementById('status').textContent = `Estado: ${message}`;
+        }
+
+    </script>
+</body>
+</html>
