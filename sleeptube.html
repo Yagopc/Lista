@@ -270,7 +270,7 @@
         // CineUpdate: cargar lista desde URL externa en formato JSON
         document.getElementById('cineupdateBtn').addEventListener('click', function() {
             updateStatus('Cargando lista CineUpdate...');
-            fetch('https://yagopc.github.io/Cine/YouTuberomanos.json')
+            fetch('https://yagopc.github.io/Cine/tvdoc.m3u')
                 .then(response => {
                     if (!response.ok) throw new Error('Error al cargar la lista: ' + response.status);
                     return response.json();
