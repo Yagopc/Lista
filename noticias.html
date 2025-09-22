@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lista de Páginas HTML</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+            font-size: 24px;
+            text-align: center;
+        }
+        .button-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        @media (max-width: 600px) {
+            button {
+                width: 100%;
+                padding: 15px;
+                font-size: 18px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Noticias</h1>
+    <div id="buttonContainer" class="button-container"></div>
+
+    <script>
+        // Lista de archivos HTML (simulada, ya que el acceso directo al sistema de archivos está restringido)
+        // En un entorno real, necesitarías un servidor o una lista predefinida
+        const htmlFiles = [
+            "abc.html",
+            "elpaís.html",
+            "lavanguardia.html",
+            "rtve.html",
+            "elperiódico.html"
+            // Agrega aquí los nombres de los archivos HTML que estén en la misma carpeta
+        ];
+
+        // Obtener el contenedor de botones
+        const buttonContainer = document.getElementById("buttonContainer");
+
+        // Crear botones dinámicamente para cada archivo HTML
+        htmlFiles.forEach(file => {
+            const button = document.createElement("button");
+            button.textContent = file.replace(".html", "");
+            button.onclick = () => {
+                window.location.href = file;
+            };
+            buttonContainer.appendChild(button);
+        });
+
+        // Nota: Para listar archivos dinámicamente en un entorno Android, necesitarías:
+        // 1. Un servidor local (como Termux con Node.js o un servidor web simple).
+        // 2. O usar una aplicación que permita acceso al sistema de archivos (como WebView).
+        // Debido a restricciones de seguridad, los navegadores no pueden listar archivos directamente.
+    </script>
+</body>
+</html>

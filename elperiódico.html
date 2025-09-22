@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lector de RSS - El Periódico</title>
+    <link rel="stylesheet" href="rss-reader.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>El Periódico - Últimas Noticias</h1>
+            <p class="subtitle">Actualizado en tiempo real desde el feed RSS oficial</p>
+        </header>
+        
+        <div class="controls">
+            <button class="refresh-btn" id="refreshBtn">Actualizar Noticias</button>
+            <div class="status" id="status">Cargando noticias...</div>
+        </div>
+        
+        <div id="newsContainer">
+            <div class="loading">Cargando noticias de El Periódico...</div>
+        </div>
+        
+        <footer>
+            <p>Lector de RSS no oficial de El Periódico | Desarrollado para fines educativos</p>
+            <p>Fuente: https://www.elperiodico.com/es/cds/rss/?id=board.xml</p>
+        </footer>
+    </div>
+
+    <script>
+        // URL del RSS de El Periódico
+        const RSS_URL = 'https://www.elperiodico.com/es/cds/rss/?id=board.xml';
+        
+        // Elementos DOM
+        const newsContainer = document.getElementById('newsContainer');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const statusEl = document.getElementById('status');
+        
+        // Función para obtener y parsear el RSS
+        async function loadNews() {
+            try {
+                statusEl.textContent = 'Cargando noticias...';
+                newsContainer.innerHTML = '<div class="loading">Cargando noticias de El Periódico...</div>';
+                
+                // Usar un proxy CORS para evitar problemas de same-origin policy
+                const proxyUrl = 'https://api.allorigins.win/raw?url=';
+                const response = await fetch(proxyUrl + encodeURIComponent(RSS_URL));
+                
+                if (!response.ok) {
+                    throw new Error(`Error HTTP: ${response.status}`);
+                }
+                
+                const xmlText = await response.text();
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+                
+                // Verificar si el parsing fue exitoso
+                if (xmlDoc.getElementsByTagName('parsererror').length > 0) {
+                    throw new Error('Error al parsear el XML del RSS');
+                }
+                
+                // Extraer los items de noticias
+                const items = xmlDoc.getElementsByTagName('item');
+                
+                if (items.length === 0) {
+                    throw new Error('No se encontraron noticias en el feed RSS');
+                }
+                
+                // Generar HTML para las noticias
+                let newsHTML = '<div class="news-grid">';
+                
+                for (let i = 0; i < Math.min(items.length, 12); i++) {
+                    const item = items[i];
+                    
+                    // Extraer información de cada noticia
+                    const title = item.getElementsByTagName('title')[0]?.textContent || 'Título no disponible';
+                    const link = item.getElementsByTagName('link')[0]?.textContent || '#';
+                    const description = item.getElementsByTagName('description')[0]?.textContent || 'Descripción no disponible';
+                    const pubDate = item.getElementsByTagName('pubDate')[0]?.textContent || '';
+                    const category = item.getElementsByTagName('category')[0]?.textContent || '';
+                    
+                    // Intentar extraer la imagen
+                    let imageUrl = '';
+                    const mediaContent = item.getElementsByTagName('media:content')[0];
+                    const enclosure = item.getElementsByTagName('enclosure')[0];
+                    
+                    // El Periódico suele usar enclosure para imágenes
+                    if (enclosure && enclosure.getAttribute('url')) {
+                        imageUrl = enclosure.getAttribute('url');
+                    } else if (mediaContent && mediaContent.getAttribute('url')) {
+                        imageUrl = mediaContent.getAttribute('url');
+                    }
+                    
+                    // También intentar extraer de la descripción (HTML)
+                    if (!imageUrl) {
+                        const descMatch = description.match(/<img[^>]+src="([^">]+)"/);
+                        if (descMatch && descMatch[1]) {
+                            imageUrl = descMatch[1];
+                        }
+                    }
+                    
+                    // Formatear la fecha
+                    const formattedDate = pubDate ? new Date(pubDate).toLocaleDateString('es-ES', {
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    }) : 'Fecha no disponible';
+                    
+                    // Limpiar la descripción de HTML
+                    const cleanDescription = description.replace(/<[^>]*>/g, '').substring(0, 200) + '...';
+                    
+                    // Crear el HTML de la tarjeta de noticia
+                    newsHTML += `
+                        <div class="news-card fade-in">
+                            ${imageUrl ? `<img src="${imageUrl}" alt="${title}" class="news-image" onerror="this.style.display='none'">` : ''}
+                            <div class="news-content">
+                                ${category ? `<span class="category">${category}</span>` : ''}
+                                <h3 class="news-title">${title}</h3>
+                                <p class="news-summary">${cleanDescription}</p>
+                                <div class="news-meta">
+                                    <span>${formattedDate}</span>
+                                    <a href="${link}" target="_blank" class="read-more">Leer más</a>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                newsHTML += '</div>';
+                newsContainer.innerHTML = newsHTML;
+                statusEl.textContent = `Última actualización: ${new Date().toLocaleTimeString('es-ES')}`;
+                
+            } catch (error) {
+                console.error('Error al cargar las noticias:', error);
+                newsContainer.innerHTML = `
+                    <div class="error">
+                        <h3>Error al cargar las noticias</h3>
+                        <p>${error.message}</p>
+                        <p>Intenta actualizar la página o vuelve a intentarlo más tarde.</p>
+                    </div>
+                `;
+                statusEl.textContent = 'Error al cargar las noticias';
+            }
+        }
+        
+        // Cargar noticias al iniciar
+        document.addEventListener('DOMContentLoaded', loadNews);
+        
+        // Actualizar al hacer clic en el botón
+        refreshBtn.addEventListener('click', loadNews);
+        
+        // Actualizar automáticamente cada 5 minutos
+        setInterval(loadNews, 5 * 60 * 1000);
+    </script>
+</body>
+</html>

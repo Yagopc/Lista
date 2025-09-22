@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lector de RSS - RTVE</title>
+    <link rel="stylesheet" href="rss-reader.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>RTVE - Últimas Noticias</h1>
+            <p class="subtitle">Actualizado en tiempo real desde el feed RSS oficial</p>
+        </header>
+        
+        <div class="controls">
+            <button class="refresh-btn" id="refreshBtn">Actualizar Noticias</button>
+            <div class="status" id="status">Cargando noticias...</div>
+        </div>
+        
+        <div class="theme-filter">
+            <select class="theme-select" id="themeSelect">
+                <option value="all">Todas las categorías</option>
+            </select>
+        </div>
+        
+        <div id="newsContainer">
+            <div class="loading">Cargando noticias de RTVE...</div>
+        </div>
+        
+        <footer>
+            <p>Lector de RSS no oficial de RTVE | Desarrollado para fines educativos</p>
+            <p>Fuente: https://api2.rtve.es/rss/temas_noticias.xml</p>
+        </footer>
+    </div>
+
+    <script>
+        // URL del RSS de RTVE
+        const RSS_URL = 'https://api2.rtve.es/rss/temas_noticias.xml';
+        
+        // Elementos DOM
+        const newsContainer = document.getElementById('newsContainer');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const statusEl = document.getElementById('status');
+        const themeSelect = document.getElementById('themeSelect');
+        
+        // Variables globales para almacenar noticias
+        let allNews = [];
+        let categories = new Set();
+        
+        // Función para obtener y parsear el RSS
+        async function loadNews() {
+            try {
+                statusEl.textContent = 'Cargando noticias...';
+                newsContainer.innerHTML = '<div class="loading">Cargando noticias de RTVE...</div>';
+                
+                // Usar un proxy CORS para evitar problemas de same-origin policy
+                const proxyUrl = 'https://api.allorigins.win/raw?url=';
+                const response = await fetch(proxyUrl + encodeURIComponent(RSS_URL));
+                
+                if (!response.ok) {
+                    throw new Error(`Error HTTP: ${response.status}`);
+                }
+                
+                const xmlText = await response.text();
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(xmlText, 'text/xml');
+                
+                // Verificar si el parsing fue exitoso
+                if (xmlDoc.getElementsByTagName('parsererror').length > 0) {
+                    throw new Error('Error al parsear el XML del RSS');
+                }
+                
+                // Extraer los items de noticias
+                const items = xmlDoc.getElementsByTagName('item');
+                
+                if (items.length === 0) {
+                    throw new Error('No se encontraron noticias en el feed RSS');
+                }
+                
+                // Reiniciar categorías
+                categories.clear();
+                allNews = [];
+                
+                // Procesar cada noticia
+                for (let i = 0; i < items.length; i++) {
+                    const item = items[i];
+                    
+                    // Extraer información de cada noticia
+                    const title = item.getElementsByTagName('title')[0]?.textContent || 'Título no disponible';
+                    const link = item.getElementsByTagName('link')[0]?.textContent || '#';
+                    const description = item.getElementsByTagName('description')[0]?.textContent || 'Descripción no disponible';
+                    const pubDate = item.getElementsByTagName('pubDate')[0]?.textContent || '';
+                    const category = item.getElementsByTagName('category')[0]?.textContent || 'General';
+                    
+                    // Añadir categoría al conjunto
+                    categories.add(category);
+                    
+                    // Intentar extraer la imagen
+                    let imageUrl = '';
+                    const mediaContent = item.getElementsByTagName('media:content')[0];
+                    const enclosure = item.getElementsByTagName('enclosure')[0];
+                    
+                    // RTVE suele usar media:thumbnail para imágenes
+                    const mediaThumbnail = item.getElementsByTagName('media:thumbnail')[0];
+                    if (mediaThumbnail && mediaThumbnail.getAttribute('url')) {
+                        imageUrl = mediaThumbnail.getAttribute('url');
+                    } else if (mediaContent && mediaContent.getAttribute('url')) {
+                        imageUrl = mediaContent.getAttribute('url');
+                    } else if (enclosure && enclosure.getAttribute('url') && enclosure.getAttribute('type')?.includes('image')) {
+                        imageUrl = enclosure.getAttribute('url');
+                    }
+                    
+                    // También intentar extraer de la descripción (HTML)
+                    if (!imageUrl) {
+                        const descMatch = description.match(/<img[^>]+src="([^">]+)"/);
+                        if (descMatch && descMatch[1]) {
+                            imageUrl = descMatch[1];
+                        }
+                    }
+                    
+                    // Formatear la fecha
+                    const formattedDate = pubDate ? new Date(pubDate).toLocaleDateString('es-ES', {
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    }) : 'Fecha no disponible';
+                    
+                    // Limpiar la descripción de HTML
+                    const cleanDescription = description.replace(/<[^>]*>/g, '').substring(0, 200) + '...';
+                    
+                    // Guardar noticia
+                    allNews.push({
+                        title,
+                        link,
+                        description: cleanDescription,
+                        pubDate: formattedDate,
+                        category,
+                        imageUrl
+                    });
+                }
+                
+                // Actualizar selector de categorías
+                updateCategoryFilter();
+                
+                // Mostrar todas las noticias
+                displayNews(allNews);
+                statusEl.textContent = `Última actualización: ${new Date().toLocaleTimeString('es-ES')}`;
+                
+            } catch (error) {
+                console.error('Error al cargar las noticias:', error);
+                newsContainer.innerHTML = `
+                    <div class="error">
+                        <h3>Error al cargar las noticias</h3>
+                        <p>${error.message}</p>
+                        <p>Intenta actualizar la página o vuelve a intentarlo más tarde.</p>
+                    </div>
+                `;
+                statusEl.textContent = 'Error al cargar las noticias';
+            }
+        }
+        
+        // Función para actualizar el filtro de categorías
+        function updateCategoryFilter() {
+            themeSelect.innerHTML = '<option value="all">Todas las categorías</option>';
+            
+            // Ordenar categorías alfabéticamente
+            const sortedCategories = Array.from(categories).sort();
+            
+            sortedCategories.forEach(category => {
+                const option = document.createElement('option');
+                option.value = category;
+                option.textContent = category;
+                themeSelect.appendChild(option);
+            });
+        }
+        
+        // Función para mostrar noticias
+        function displayNews(newsArray) {
+            if (newsArray.length === 0) {
+                newsContainer.innerHTML = '<div class="no-results">No hay noticias que coincidan con el filtro seleccionado.</div>';
+                return;
+            }
+            
+            let newsHTML = '<div class="news-grid">';
+            
+            newsArray.forEach(news => {
+                newsHTML += `
+                    <div class="news-card">
+                        ${news.imageUrl ? `<img src="${news.imageUrl}" alt="${news.title}" class="news-image" onerror="this.style.display='none'">` : ''}
+                        <div class="news-content">
+                            <span class="category">${news.category}</span>
+                            <h3 class="news-title">${news.title}</h3>
+                            <p class="news-summary">${news.description}</p>
+                            <div class="news-meta">
+                                <span>${news.pubDate}</span>
+                                <a href="${news.link}" target="_blank" class="read-more">Leer más</a>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            newsHTML += '</div>';
+            newsContainer.innerHTML = newsHTML;
+        }
+        
+        // Función para filtrar noticias por categoría
+        function filterNewsByCategory() {
+            const selectedCategory = themeSelect.value;
+            
+            if (selectedCategory === 'all') {
+                displayNews(allNews);
+            } else {
+                const filteredNews = allNews.filter(news => news.category === selectedCategory);
+                displayNews(filteredNews);
+            }
+        }
+        
+        // Cargar noticias al iniciar
+        document.addEventListener('DOMContentLoaded', loadNews);
+        
+        // Actualizar al hacer clic en el botón
+        refreshBtn.addEventListener('click', loadNews);
+        
+        // Filtrar cuando cambia la categoría
+        themeSelect.addEventListener('change', filterNewsByCategory);
+        
+        // Actualizar automáticamente cada 5 minutos
+        setInterval(loadNews, 5 * 60 * 1000);
+    </script>
+</body>
+</html>
