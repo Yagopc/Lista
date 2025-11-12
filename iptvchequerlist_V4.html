@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analizador de Listas M3U</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .tab-container {
+            display: flex;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            background-color: #f1f1f1;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            flex: 1;
+            text-align: center;
+        }
+        #recheckOfflineBtn {
+    padding: 12px 24px;
+    background-color: #FF9800;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    margin-top: 20px;
+    margin-left: 10px;
+    display: none;
+}
+#recheckOfflineBtn:hover {
+    background-color: #F57C00;
+}
+#recheckOfflineBtn:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+}
+        .tab.active {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .input-container {
+            display: flex;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+        #urlInput {
+            flex: 1;
+            min-width: 200px;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+        .file-input-label {
+            padding: 10px 20px;
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        #fileInput {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+        #fileName {
+            flex: 1;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            min-width: 200px;
+        }
+        #analyzeBtn, #analyzeFileBtn, #stopBtn, #stopFileBtn {
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #analyzeBtn, #analyzeFileBtn {
+            background-color: #4CAF50;
+            color: white;
+        }
+        #analyzeBtn:hover, #analyzeFileBtn:hover {
+            background-color: #45a049;
+        }
+        #analyzeBtn:disabled, #analyzeFileBtn:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #stopBtn, #stopFileBtn {
+            background-color: #f44336;
+            color: white;
+            display: none;
+        }
+        #stopBtn:hover, #stopFileBtn:hover {
+            background-color: #d32f2f;
+        }
+        #status {
+            margin: 20px 0;
+            padding: 15px;
+            border-radius: 4px;
+            background-color: #f5f5f5;
+        }
+        .progress-container {
+            width: 100%;
+            background-color: #f1f1f1;
+            border-radius: 4px;
+            margin: 20px 0;
+        }
+        #progressBar {
+            width: 0%;
+            height: 30px;
+            background-color: #4CAF50;
+            border-radius: 4px;
+            text-align: center;
+            line-height: 30px;
+            color: white;
+            transition: width 0.3s;
+        }
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .stat-box {
+            flex: 1;
+            min-width: 120px;
+            text-align: center;
+            padding: 10px;
+            margin: 5px;
+            background-color: white;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 5px 0;
+        }
+        .stat-label {
+            font-size: 14px;
+            color: #666;
+        }
+        .current-channel {
+            padding: 15px;
+            background-color: #e3f2fd;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .channel-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .channel-status {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 3px;
+            color: white;
+        }
+        .online {
+            background-color: #4CAF50;
+        }
+        .offline {
+            background-color: #f44336;
+        }
+        .checking {
+            background-color: #FFC107;
+            color: black;
+        }
+        #downloadBtn, #showListBtn {
+            padding: 12px 24px;
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-top: 20px;
+            display: none;
+        }
+        #downloadBtn:hover, #showListBtn:hover {
+            background-color: #0b7dda;
+        }
+        .hidden {
+            display: none;
+        }
+        #channelListContainer {
+            margin-top: 25px;
+        }
+        #channelList {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        #channelList th, #channelList td {
+            padding: 8px 6px;
+            border-bottom: 1px solid #ddd;
+            text-align: left;
+        }
+        #channelList th {
+            background-color: #f5f5f5;
+        }
+        .icon-on {
+            color: #4CAF50;
+            font-weight: bold;
+            font-size: 1.2em;
+            cursor: default;
+        }
+        .icon-off {
+            color: #f44336;
+            font-weight: bold;
+            font-size: 1.2em;
+            cursor: pointer;
+        }
+        .prew-btn,
+        .manual-on-btn,
+        .manual-off-btn {
+            padding: 3px 10px;
+            border: none;
+            border-radius: 3px;
+            margin-left: 5px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .prew-btn {
+            background: #FFC107;
+            color: #222;
+        }
+        .prew-btn:hover {
+            background: #ff9800;
+        }
+        .manual-on-btn {
+            background: #4CAF50;
+            color: #fff;
+        }
+        .manual-on-btn:hover {
+            background: #388e3c;
+        }
+        .manual-off-btn {
+            background: #f44336;
+            color: #fff;
+        }
+        .manual-off-btn:hover {
+            background: #b71c1c;
+        }
+        /* Ventana flotante previsualización */
+        .preview-modal {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 99;
+        }
+        .preview-content {
+            background: #fff;
+            border-radius: 8px;
+            padding: 10px 10px 20px 10px;
+            min-width: 340px;
+            max-width: 98vw;
+            max-height: 95vh;
+            position: relative;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .preview-close {
+            position: absolute;
+            top: 5px; right: 11px;
+            background: #f44336;
+            color: #fff;
+            border: none;
+            border-radius: 50%;
+            font-size: 18px;
+            width: 32px; height: 32px;
+            cursor: pointer;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .preview-title {
+            font-size: 1.1em;
+            font-weight: bold;
+            margin: 0 0 8px 0;
+            text-align: center;
+        }
+        .not-supported {
+            color: #f44336;
+            text-align: center;
+            padding: 12px 0;
+        }
+        @media (max-width: 600px) {
+            #channelList th, #channelList td { font-size: 13px; }
+            .preview-content { min-width: 95vw; }
+        }
+    </style>
+</head>
+<body>
+    <h1>Analizador de Listas M3U</h1>
+    
+    <div class="tab-container">
+        <button class="tab active" id="urlTab">Desde URL</button>
+        <button class="tab" id="fileTab">Desde Archivo</button>
+    </div>
+    
+    <div id="urlInputContainer">
+        <div class="input-container">
+            <input type="text" id="urlInput" placeholder="Introduce la URL del listado M3U">
+            <button id="analyzeBtn">Analizar</button>
+            <button id="stopBtn">Detener</button>
+        </div>
+    </div>
+    
+    <div id="fileInputContainer" class="hidden">
+        <div class="input-container">
+            <div class="file-input-wrapper">
+                <label for="fileInput" class="file-input-label">Seleccionar archivo</label>
+                <input type="file" id="fileInput" accept=".m3u,.m3u8,.txt,.md,.m3w">
+            </div>
+            <span id="fileName">Ningún archivo seleccionado</span>
+            <button id="analyzeFileBtn" disabled>Analizar</button>
+            <button id="stopFileBtn">Detener</button>
+        </div>
+    </div>
+    
+    <div id="status">Esperando para analizar...</div>
+    
+    <div class="progress-container">
+        <div id="progressBar">0%</div>
+    </div>
+    
+    <div class="stats">
+        <div class="stat-box">
+            <div class="stat-value" id="totalChannels">0</div>
+            <div class="stat-label">Total Canales</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-value" id="onlineChannels">0</div>
+            <div class="stat-label">Canales Online</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-value" id="offlineChannels">0</div>
+            <div class="stat-label">Canales Offline</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-value" id="remainingChannels">0</div>
+            <div class="stat-label">Por Verificar</div>
+        </div>
+    </div>
+    
+    <div class="current-channel">
+        <div class="channel-name" id="currentChannelName">-</div>
+        <div id="currentChannelStatus"></div>
+    </div>
+    
+    <button id="downloadBtn">Descargar Listado Funcionando</button>
+    <button id="showListBtn">Ver lista</button>
+    <button id="recheckOfflineBtn">Recomprobar Offline</button>
+    
+    <div id="channelListContainer" class="hidden">
+        <table id="channelList">
+            <thead>
+                <tr>
+                    <th>Nombre</th>
+                    <th>Estado</th>
+                    <th>Prew</th>
+                    <th>Manual</th>
+                </tr>
+            </thead>
+            <tbody id="channelListBody"></tbody>
+        </table>
+    </div>
+    <div id="previewModal" class="hidden"></div>
+
+    <script>
+        // Variables globales
+        let workingChannels = [];
+        let totalChannels = 0;
+        let onlineChannels = 0;
+        let offlineChannels = 0;
+        let isAnalyzing = false;
+        let stopRequested = false;
+        let currentTab = 'url';
+        let channelsGlobal = [];
+
+        // Elementos del DOM
+        const urlTab = document.getElementById('urlTab');
+        const fileTab = document.getElementById('fileTab');
+        const urlInputContainer = document.getElementById('urlInputContainer');
+        const fileInputContainer = document.getElementById('fileInputContainer');
+        const urlInput = document.getElementById('urlInput');
+        const fileInput = document.getElementById('fileInput');
+        const fileName = document.getElementById('fileName');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const analyzeFileBtn = document.getElementById('analyzeFileBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const stopFileBtn = document.getElementById('stopFileBtn');
+        const statusDiv = document.getElementById('status');
+        const progressBar = document.getElementById('progressBar');
+        const totalChannelsDiv = document.getElementById('totalChannels');
+        const onlineChannelsDiv = document.getElementById('onlineChannels');
+        const offlineChannelsDiv = document.getElementById('offlineChannels');
+        const remainingChannelsDiv = document.getElementById('remainingChannels');
+        const currentChannelName = document.getElementById('currentChannelName');
+        const currentChannelStatus = document.getElementById('currentChannelStatus');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const showListBtn = document.getElementById('showListBtn');
+        const channelListContainer = document.getElementById('channelListContainer');
+        const channelListBody = document.getElementById('channelListBody');
+        const previewModal = document.getElementById('previewModal');
+        const recheckOfflineBtn = document.getElementById('recheckOfflineBtn');
+
+        // Event Listeners
+        urlTab.addEventListener('click', () => switchTab('url'));
+        fileTab.addEventListener('click', () => switchTab('file'));
+        analyzeBtn.addEventListener('click', analyzeFromUrl);
+        analyzeFileBtn.addEventListener('click', analyzeFromFile);
+        stopBtn.addEventListener('click', stopAnalysis);
+        stopFileBtn.addEventListener('click', stopAnalysis);
+        fileInput.addEventListener('change', handleFileSelect);
+        downloadBtn.addEventListener('click', downloadWorkingList);
+        showListBtn.addEventListener('click', toggleChannelList);
+        recheckOfflineBtn.addEventListener('click', recheckOfflineChannels);
+
+        function switchTab(tab) {
+            currentTab = tab;
+            if (tab === 'url') {
+                urlTab.classList.add('active');
+                fileTab.classList.remove('active');
+                urlInputContainer.classList.remove('hidden');
+                fileInputContainer.classList.add('hidden');
+            } else {
+                urlTab.classList.remove('active');
+                fileTab.classList.add('active');
+                urlInputContainer.classList.add('hidden');
+                fileInputContainer.classList.remove('hidden');
+            }
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                fileName.textContent = file.name;
+                analyzeFileBtn.disabled = false;
+            } else {
+                fileName.textContent = 'Ningún archivo seleccionado';
+                analyzeFileBtn.disabled = true;
+            }
+        }
+
+        async function analyzeFromUrl() {
+        	recheckOfflineBtn.style.display = 'none';
+            const url = urlInput.value.trim();
+            if (!url) {
+                updateStatus('Por favor, introduce una URL válida', 'error');
+                return;
+            }
+            try {
+                updateStatus('Descargando listado M3U...', 'loading');
+                analyzeBtn.disabled = true;
+                stopBtn.style.display = 'inline-block';
+                isAnalyzing = true;
+                stopRequested = false;
+                const response = await fetch(url);
+                if (!response.ok) throw new Error('Error al descargar el listado');
+                const m3uContent = await response.text();
+                await analyzeM3UContent(m3uContent);
+            } catch (error) {
+                if (!stopRequested) {
+                    updateStatus(`Error: ${error.message}`, 'error');
+                }
+                resetAnalysisState();
+            }
+        }
+
+        async function analyzeFromFile() {
+            const file = fileInput.files[0];
+            recheckOfflineBtn.style.display = 'none';
+            if (!file) {
+                updateStatus('Por favor, selecciona un archivo M3U', 'error');
+                return;
+            }
+            try {
+                updateStatus('Leyendo archivo M3U...', 'loading');
+                analyzeFileBtn.disabled = true;
+                stopFileBtn.style.display = 'inline-block';
+                isAnalyzing = true;
+                stopRequested = false;
+                const fileContent = await readFileAsText(file);
+                await analyzeM3UContent(fileContent);
+            } catch (error) {
+                if (!stopRequested) {
+                    updateStatus(`Error: ${error.message}`, 'error');
+                }
+                resetAnalysisState();
+            }
+        }
+
+        function readFileAsText(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = event => resolve(event.target.result);
+                reader.onerror = error => reject(error);
+                reader.readAsText(file);
+            });
+        }
+
+        async function analyzeM3UContent(m3uContent) {
+            const channels = parseM3U(m3uContent);
+            totalChannels = channels.length;
+            workingChannels = [];
+            onlineChannels = 0;
+            offlineChannels = 0;
+            if (channels.length === 0) {
+                updateStatus('No se encontraron canales en el listado', 'error');
+                resetAnalysisState();
+                return;
+            }
+            updateStatus(`Analizando ${channels.length} canales...`, 'loading');
+            updateStats();
+            updateProgress(0);
+            channelsGlobal = channels.map(c => ({...c}));
+            // Analizar canales en paralelo (máx 4 a la vez)
+            const maxParallel = 4;
+            let i = 0;
+            let inProgress = 0;
+            let finished = 0;
+            function analyzeNext() {
+                if (stopRequested || i >= channels.length) return;
+                while (inProgress < maxParallel && i < channels.length) {
+                    const idx = i;
+                    inProgress++;
+                    i++;
+                    checkChannelSmart(channels[idx].url).then(isOnline => {
+                        channels[idx].online = isOnline;
+                        if (channelsGlobal[idx]) channelsGlobal[idx].online = isOnline;
+                        if (isOnline) {
+                            workingChannels.push(channels[idx]);
+                            onlineChannels++;
+                        } else {
+                            offlineChannels++;
+                        }
+                        finished++;
+                        updateStats();
+                        const progress = Math.floor((finished / totalChannels) * 100);
+                        updateProgress(progress);
+                        if (idx === channels.length - 1) {
+                            // última
+                            finishAnalyze();
+                        } else {
+                            analyzeNext();
+                        }
+                    }).catch(() => {
+                        channels[idx].online = false;
+                        if (channelsGlobal[idx]) channelsGlobal[idx].online = false;
+                        offlineChannels++;
+                        finished++;
+                        updateStats();
+                        const progress = Math.floor((finished / totalChannels) * 100);
+                        updateProgress(progress);
+                        analyzeNext();
+                    }).finally(() => { inProgress--; });
+                }
+            }
+            function finishAnalyze() {
+            	recheckOfflineBtn.style.display = 'block';
+            
+                if (stopRequested) {
+                    updateStatus(`Análisis detenido. ${onlineChannels} canales funcionan de ${onlineChannels + offlineChannels} verificados.`, 'warning');
+                } else {
+                    updateStatus(`Análisis completado. ${onlineChannels} de ${totalChannels} canales funcionan.`, 'success');
+                }
+                if (workingChannels.length > 0) {
+                    downloadBtn.style.display = 'block';
+                }
+                showListBtn.style.display = 'block';
+                resetAnalysisState();
+            }
+            if (channels.length > 0) {
+                analyzeNext();
+            }
+        }
+async function recheckOfflineChannels() {
+    const offlineChannels = channelsGlobal.filter(channel => channel.online === false);
+    
+    if (offlineChannels.length === 0) {
+        updateStatus('No hay canales offline para recomprobar', 'warning');
+        return;
+    }
+    
+    recheckOfflineBtn.disabled = true;
+    updateStatus(`Recomprobando ${offlineChannels.length} canales offline...`, 'loading');
+    
+    let recheckedCount = 0;
+    let newlyOnline = 0;
+    
+    // Comprobar canales offline en paralelo (máx 3 a la vez)
+    const maxParallel = 3;
+    let i = 0;
+    let inProgress = 0;
+    
+    function checkNext() {
+        if (i >= offlineChannels.length) return;
+        
+        while (inProgress < maxParallel && i < offlineChannels.length) {
+            const channel = offlineChannels[i];
+            const originalIndex = channelsGlobal.findIndex(c => c.url === channel.url);
+            i++;
+            inProgress++;
+            
+            checkChannelSmart(channel.url).then(isOnline => {
+                if (isOnline) {
+                    channel.online = true;
+                    channelsGlobal[originalIndex].online = true;
+                    workingChannels.push(channel);
+                    newlyOnline++;
+                }
+                
+                recheckedCount++;
+                updateStatus(`Recomprobando offline: ${recheckedCount}/${offlineChannels.length} - ${newlyOnline} nuevos online`, 'loading');
+                
+                if (recheckedCount === offlineChannels.length) {
+                    finishRecheck();
+                } else {
+                    checkNext();
+                }
+            }).catch(() => {
+                recheckedCount++;
+                updateStatus(`Recomprobando offline: ${recheckedCount}/${offlineChannels.length} - ${newlyOnline} nuevos online`, 'loading');
+                
+                if (recheckedCount === offlineChannels.length) {
+                    finishRecheck();
+                } else {
+                    checkNext();
+                }
+            }).finally(() => {
+                inProgress--;
+            });
+        }
+    }
+    
+    function finishRecheck() {
+        updateStats();
+        updateStatus(`Recomprobación completada: ${newlyOnline} de ${offlineChannels.length} canales ahora están online`, 'success');
+        recheckOfflineBtn.disabled = false;
+        
+        // Actualizar la lista si está visible
+        if (!channelListContainer.classList.contains('hidden')) {
+            renderChannelList();
+        }
+    }
+    
+    checkNext();
+}
+        function parseM3U(content) {
+            const lines = content.split('\n');
+            const channels = [];
+            let currentChannel = null;
+            for (const line of lines) {
+                if (line.startsWith('#EXTINF:')) {
+                    currentChannel = {
+                        info: line,
+                        name: extractChannelName(line),
+                        url: ''
+                    };
+                } else if (line.trim() && !line.startsWith('#') && currentChannel) {
+                    currentChannel.url = line.trim();
+                    currentChannel.online = undefined;
+                    channels.push(currentChannel);
+                    currentChannel = null;
+                }
+            }
+            return channels;
+        }
+
+        function extractChannelName(extinfLine) {
+            const nameMatch = extinfLine.match(/,(.*)$/);
+            return nameMatch ? nameMatch[1].trim() : 'Desconocido';
+        }
+
+        // Mejorado: comprueba HEAD, GET, CORS, y fallback
+        async function checkChannelSmart(url) {
+            const timeoutMs = 6000;
+            // Primer intento: HEAD
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+                const resp = await fetch(url, {
+                    method: 'HEAD',
+                    signal: controller.signal,
+                    cache: 'no-store',
+                });
+                clearTimeout(timeoutId);
+                if (resp.ok) {
+                    const ct = resp.headers.get('content-type') || '';
+                    if (testContentType(ct)) return true;
+                }
+            } catch (e) {}
+            // Segundo intento: GET con Range
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+                const resp = await fetch(url, {
+                    method: 'GET',
+                    headers: { 'Range': 'bytes=0-4095' },
+                    signal: controller.signal,
+                    cache: 'no-store'
+                });
+                clearTimeout(timeoutId);
+                if (resp.ok) {
+                    const ct = resp.headers.get('content-type') || '';
+                    if (testContentType(ct)) return true;
+                }
+            } catch (e) {}
+            // Tercer intento: GET normal
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+                const resp = await fetch(url, {
+                    method: 'GET',
+                    signal: controller.signal,
+                    cache: 'no-store'
+                });
+                clearTimeout(timeoutId);
+                if (resp.ok) {
+                    const ct = resp.headers.get('content-type') || '';
+                    if (testContentType(ct)) return true;
+                }
+            } catch (e) {}
+            return false;
+        }
+        function testContentType(contentType) {
+            const validTypes = [
+                'application/x-mpegurl',
+                'application/vnd.apple.mpegurl',
+                'video/mp2t',
+                'application/octet-stream',
+                'video/',
+                'text/plain',
+                'audio/', // Aceptar streams de audio
+                'application/dash+xml',
+                'application/json',
+                'application/x-mpegURL'
+            ];
+            return validTypes.some(type => contentType.toLowerCase().includes(type));
+        }
+
+        function stopAnalysis() {
+            stopRequested = true;
+            isAnalyzing = false;
+            updateStatus('Deteniendo análisis...', 'warning');
+        }
+        function resetAnalysisState() {
+        	
+            isAnalyzing = false;
+            analyzeBtn.disabled = false;
+            analyzeFileBtn.disabled = fileInput.files.length === 0;
+            stopBtn.style.display = 'none';
+            stopFileBtn.style.display = 'none';
+        }
+        function updateStats() {
+            totalChannelsDiv.textContent = totalChannels;
+            onlineChannelsDiv.textContent = channelsGlobal.filter(c => c.online).length;
+            offlineChannelsDiv.textContent = channelsGlobal.filter(c => c.online === false).length;
+            remainingChannelsDiv.textContent = channelsGlobal.filter(c => c.online === undefined).length;
+        }
+        function updateStatus(message, type) {
+            statusDiv.textContent = message;
+            statusDiv.style.backgroundColor = type === 'error' ? '#ffdddd' : 
+                                            type === 'loading' ? '#fff3cd' : 
+                                            type === 'success' ? '#ddffdd' :
+                                            type === 'warning' ? '#fff3e0' : '#f5f5f5';
+        }
+        function updateProgress(percent) {
+            progressBar.style.width = `${percent}%`;
+            progressBar.textContent = `${percent}%`;
+        }
+        function downloadWorkingList() {
+            if (workingChannels.length === 0) return;
+            let m3uContent = '#EXTM3U\n';
+            for (const channel of workingChannels) {
+                m3uContent += `${channel.info}\n${channel.url}\n`;
+            }
+            const blob = new Blob([m3uContent], { type: 'application/x-mpegurl' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'listado_funciona.m3u';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+        function toggleChannelList() {
+            if (channelListContainer.classList.contains('hidden')) {
+                renderChannelList();
+                channelListContainer.classList.remove('hidden');
+                showListBtn.textContent = 'Ocultar lista';
+            } else {
+                channelListContainer.classList.add('hidden');
+                showListBtn.textContent = 'Ver lista';
+            }
+        }
+        function renderChannelList() {
+            channelListBody.innerHTML = '';
+            channelsGlobal.forEach((channel, idx) => {
+                const tr = document.createElement('tr');
+                // Nombre canal
+                const tdName = document.createElement('td');
+                tdName.textContent = channel.name;
+                tr.appendChild(tdName);
+
+                // Estado
+                const tdEstado = document.createElement('td');
+                if (channel.online) {
+                    const icon = document.createElement('span');
+                    icon.textContent = '🟢 on';
+                    icon.className = 'icon-on';
+                    tdEstado.appendChild(icon);
+                } else {
+                    const icon = document.createElement('span');
+                    icon.textContent = '🔴 off';
+                    icon.className = 'icon-off';
+                    icon.title = "Volver a comprobar este canal";
+                    icon.style.marginRight = '6px';
+                    icon.style.userSelect = 'none';
+                    icon.addEventListener('click', async () => {
+                        icon.textContent = '⏳';
+                        icon.style.color = '#FFC107';
+                        icon.title = "Comprobando...";
+                        const isStillOnline = await checkChannelSmart(channel.url);
+                        channel.online = isStillOnline;
+                        channelsGlobal[idx].online = isStillOnline;
+                        if (isStillOnline) {
+                            if (!workingChannels.find(c => c.url === channel.url)) {
+                                workingChannels.push(channel);
+                            }
+                        }
+                        updateStatsFromChannelList();
+                        renderChannelList();
+                    });
+                    tdEstado.appendChild(icon);
+                }
+                tr.appendChild(tdEstado);
+
+                // Prew botón
+                const tdPrew = document.createElement('td');
+                const prewBtn = document.createElement('button');
+                prewBtn.textContent = 'Prew';
+                prewBtn.className = 'prew-btn';
+                prewBtn.title = 'Previsualizar canal';
+                prewBtn.addEventListener('click', () => {
+                    openPreviewModal(channel);
+                });
+                tdPrew.appendChild(prewBtn);
+                tr.appendChild(tdPrew);
+
+                // Manual ON/OFF
+                const tdManual = document.createElement('td');
+                const btnOn = document.createElement('button');
+                btnOn.textContent = 'On';
+                btnOn.className = 'manual-on-btn';
+                btnOn.title = "Forzar canal como online";
+                btnOn.onclick = () => {
+                    channel.online = true;
+                    channelsGlobal[idx].online = true;
+                    if (!workingChannels.find(c => c.url === channel.url)) {
+                        workingChannels.push(channel);
+                    }
+                    updateStatsFromChannelList();
+                    renderChannelList();
+                };
+                tdManual.appendChild(btnOn);
+                const btnOff = document.createElement('button');
+                btnOff.textContent = 'Off';
+                btnOff.className = 'manual-off-btn';
+                btnOff.title = "Forzar canal como offline";
+                btnOff.onclick = () => {
+                    channel.online = false;
+                    channelsGlobal[idx].online = false;
+                    workingChannels = workingChannels.filter(c => c.url !== channel.url);
+                    updateStatsFromChannelList();
+                    renderChannelList();
+                };
+                tdManual.appendChild(btnOff);
+                tr.appendChild(tdManual);
+
+                channelListBody.appendChild(tr);
+            });
+        }
+        function updateStatsFromChannelList() {
+            onlineChannels = channelsGlobal.filter(c => c.online).length;
+            offlineChannels = channelsGlobal.filter(c => c.online === false).length;
+            totalChannels = channelsGlobal.length;
+            workingChannels = channelsGlobal.filter(c => c.online);
+            updateStats();
+        }
+        function openPreviewModal(channel) {
+            previewModal.innerHTML = '';
+            previewModal.className = 'preview-modal';
+            const modalContent = document.createElement('div');
+            modalContent.className = 'preview-content';
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'preview-close';
+            closeBtn.innerHTML = '&times;';
+            closeBtn.title = 'Cerrar';
+            closeBtn.onclick = () => {
+                previewModal.classList.add('hidden');
+                previewModal.classList.remove('preview-modal');
+            };
+            modalContent.appendChild(closeBtn);
+            const title = document.createElement('div');
+            title.className = 'preview-title';
+            title.textContent = channel.name;
+            modalContent.appendChild(title);
+
+            // Adaptar a casi todos los formatos posibles
+            let ext = channel.url.split('?')[0].split('.').pop().toLowerCase();
+            let videoCanPlay = ['m3u8','mp4','webm','ogg','mov','ts','mkv','txt'].includes(ext);
+            let audioCanPlay = ['mp3','aac','m4a','ogg','opus','wav'].includes(ext);
+            let dashCanPlay = ext === 'mpd';
+            let iframeCanPlay = false;
+            // Video
+            if (videoCanPlay) {
+                const video = document.createElement('video');
+                video.src = channel.url;
+                video.controls = true;
+                video.autoplay = true;
+                video.style.width = '100%';
+                video.style.maxHeight = '60vh';
+                video.setAttribute('playsinline','true');
+                if (ext === 'm3u8') {
+                    // hls.js para navegadores que no soportan nativo
+                    if (window.Hls && !video.canPlayType('application/vnd.apple.mpegurl')) {
+                        const hls = new Hls();
+                        hls.loadSource(channel.url);
+                        hls.attachMedia(video);
+                    }
+                }
+                modalContent.appendChild(video);
+            }
+            // Audio
+            else if (audioCanPlay) {
+                const audio = document.createElement('audio');
+                audio.src = channel.url;
+                audio.controls = true;
+                audio.autoplay = true;
+                audio.style.width = '100%';
+                modalContent.appendChild(audio);
+            }
+            // DASH (aviso)
+            else if (dashCanPlay) {
+                const info = document.createElement('div');
+                info.className = 'not-supported';
+                info.textContent = "Formato MPEG-DASH no soportado en este reproductor. Use un reproductor externo.";
+                modalContent.appendChild(info);
+            }
+            // Si es http(s) y no se reconoce extensión, intentar video
+            else if (channel.url.startsWith('http')) {
+                const video = document.createElement('video');
+                video.src = channel.url;
+                video.controls = true;
+                video.autoplay = true;
+                video.style.width = '100%';
+                video.style.maxHeight = '60vh';
+                video.setAttribute('playsinline','true');
+                modalContent.appendChild(video);
+            }
+            // Si nada funciona, intento iframe embebido
+            else {
+                const iframe = document.createElement('iframe');
+                iframe.src = channel.url;
+                iframe.style.width = "100%";
+                iframe.style.height = "340px";
+                iframe.setAttribute('allowfullscreen', 'true');
+                modalContent.appendChild(iframe);
+                iframeCanPlay = true;
+            }
+            if (!videoCanPlay && !audioCanPlay && !dashCanPlay && !iframeCanPlay) {
+                const info = document.createElement('div');
+                info.className = 'not-supported';
+                info.textContent = "Este canal no puede reproducirse en el navegador.";
+                modalContent.appendChild(info);
+            }
+            previewModal.appendChild(modalContent);
+            // Siempre centrada
+            previewModal.classList.remove('hidden');
+            previewModal.classList.add('preview-modal');
+            // Cerrar al pulsar fuera
+            previewModal.onclick = function(e) {
+                if (e.target === previewModal) {
+                    previewModal.classList.add('hidden');
+                    previewModal.classList.remove('preview-modal');
+                }
+            };
+        }
+        // Opcional: cargar hls.js si no existe para .m3u8 soporte universal
+        (function(){
+            if (!window.Hls) {
+                var script = document.createElement('script');
+                script.src = "https://cdn.jsdelivr.net/npm/hls.js@latest";
+                script.async = true;
+                document.head.appendChild(script);
+            }
+        })();
+    </script>
+</body>
+</html>
