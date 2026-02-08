@@ -1,0 +1,1244 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Editor de Imágenes Móvil</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .toolbar {
+    background: white;
+    padding: 10px 5px;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+    z-index: 10;
+    flex-shrink: 0;
+    height: 80px;
+    position: fixed; /* ← Añadir esto */
+    bottom: 0; /* ← Añadir esto */
+    left: 0; /* ← Añadir esto */
+    right: 0; /* ← Añadir esto */
+}
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.9);
+    overflow: hidden;
+    margin-bottom: 80px; /* ← Añadir margen inferior para la barra */
+}
+.tool-btn.disabled {
+    opacity: 0.6; /* Cambiar de 0.4 a 0.6 para que sean más visibles */
+    pointer-events: none;
+    background: #f0f0f0; /* Añadir fondo para que se vean */
+}
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            height: 100vh;
+            overflow: hidden;
+            touch-action: pan-x pan-y;
+        }
+        
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            max-width: 100vw;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        
+        /* Header */
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 12px 15px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 10;
+            flex-shrink: 0;
+        }
+        
+        .header h1 {
+            font-size: 1.2rem;
+            color: #4a5568;
+            margin-bottom: 3px;
+        }
+        
+        .header p {
+            font-size: 0.8rem;
+            color: #718096;
+        }
+        
+        /* Contenido Principal */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.9);
+            overflow: hidden;
+        }
+        
+        .image-container {
+            width: 100%;
+            max-width: 95vw;
+            height: 55vh;
+            border: 3px dashed #cbd5e0;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            margin-bottom: 10px;
+        }
+        
+        #currentImage {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            transition: transform 0.3s ease;
+        }
+        
+        .placeholder {
+            text-align: center;
+            color: #a0aec0;
+            padding: 20px;
+        }
+        
+        .placeholder i {
+            font-size: 48px;
+            margin-bottom: 15px;
+            display: block;
+            color: #cbd5e0;
+        }
+        
+        /* Controles de Selección */
+        .crop-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            z-index: 5;
+            touch-action: none;
+        }
+        
+        .crop-selection {
+            position: absolute;
+            border: 3px solid #4299e1;
+            background: rgba(66, 153, 225, 0.1);
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.6);
+            pointer-events: none;
+        }
+        
+        /* Barra de Herramientas */
+        .toolbar {
+            background: white;
+            padding: 10px 5px;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+            z-index: 10;
+            flex-shrink: 0;
+            height: 80px;
+        }
+        
+        .tool-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: none;
+            border: none;
+            padding: 8px 4px;
+            width: 65px;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            color: #4a5568;
+            min-height: 60px;
+        }
+        
+        .tool-btn:active {
+            background: #edf2f7;
+            transform: scale(0.95);
+        }
+        
+        .tool-btn i {
+            font-size: 22px;
+            margin-bottom: 5px;
+            color: #4299e1;
+        }
+        
+        .tool-btn span {
+            font-size: 0.7rem;
+            font-weight: 500;
+            text-align: center;
+        }
+        
+        .tool-btn.disabled {
+            opacity: 0.4;
+            pointer-events: none;
+        }
+        
+        /* Botón de cargar imagen mejorado */
+        .load-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            margin-top: 20px;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .load-btn:active {
+            transform: scale(0.95);
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+        
+        /* Modal de Opciones */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        
+        .modal {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            width: 90%;
+            max-width: 300px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        }
+        
+        .modal h2 {
+            margin-bottom: 20px;
+            color: #2d3748;
+            font-size: 1.1rem;
+            text-align: center;
+        }
+        
+        .modal-buttons {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .modal-btn {
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        
+        .size-btn {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+        
+        .size-btn:active {
+            background: #cbd5e0;
+            transform: scale(0.98);
+        }
+        
+        .cancel-btn {
+            background: #fed7d7;
+            color: #c53030;
+            grid-column: span 3;
+            margin-top: 10px;
+        }
+        
+        .cancel-btn:active {
+            background: #feb2b2;
+        }
+        
+        /* Modal para formato de guardado */
+        .format-options {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .format-btn {
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .jpg-btn {
+            background: #4299e1;
+            color: white;
+        }
+        
+        .jpg-btn:active {
+            background: #3182ce;
+        }
+        
+        .png-btn {
+            background: #48bb78;
+            color: white;
+        }
+        
+        .png-btn:active {
+            background: #38a169;
+        }
+        
+        .format-btn small {
+            font-size: 0.7rem;
+            opacity: 0.9;
+        }
+        
+        .quality-control {
+            margin: 15px 0;
+            padding: 10px;
+            background: #f7fafc;
+            border-radius: 8px;
+        }
+        
+        .quality-control label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #4a5568;
+        }
+        
+        .quality-slider {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #e2e8f0;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        .quality-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #4299e1;
+            cursor: pointer;
+        }
+        
+        .quality-value {
+            text-align: center;
+            font-size: 0.9rem;
+            color: #718096;
+            margin-top: 5px;
+        }
+        
+        /* Loading Spinner */
+        .spinner {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 50px;
+            height: 50px;
+            z-index: 1000;
+        }
+        
+        .spinner-inner {
+            width: 100%;
+            height: 100%;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4299e1;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Toast de Notificación */
+        .toast {
+            position: fixed;
+            bottom: 90px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #48bb78;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            display: none;
+            font-weight: 500;
+            font-size: 0.9rem;
+            max-width: 90%;
+            text-align: center;
+        }
+        
+        .toast.error {
+            background: #f56565;
+        }
+        
+        .toast.warning {
+            background: #ed8936;
+        }
+        
+        /* Información de imagen */
+        .image-info {
+            margin-top: 10px;
+            font-size: 0.8rem;
+            color: #718096;
+            text-align: center;
+            padding: 0 10px;
+            max-width: 100%;
+            word-wrap: break-word;
+        }
+        
+        /* Para móviles más pequeños */
+        @media (max-width: 360px) {
+            .tool-btn {
+                width: 55px;
+                padding: 6px 3px;
+            }
+            
+            .modal-buttons {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .cancel-btn {
+                grid-column: span 2;
+            }
+            
+            .load-btn {
+                padding: 12px 24px;
+                font-size: 0.9rem;
+            }
+            
+            .format-btn {
+                padding: 10px;
+                font-size: 0.8rem;
+            }
+        }
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1><i class="fas fa-mobile-alt"></i> Editor de Imágenes Móvil</h1>
+            <p>Selecciona una imagen y aplica transformaciones</p>
+        </div>
+        
+        <!-- Contenido Principal -->
+        <div class="main-content">
+            <div class="image-container">
+                <div class="placeholder" id="placeholder">
+                    <i class="fas fa-image"></i>
+                    <p>Para comenzar, carga una imagen</p>
+                </div>
+                <img id="currentImage" style="display: none;" alt="Imagen actual">
+                
+                <!-- Overlay para recorte -->
+                <div class="crop-overlay" id="cropOverlay"></div>
+            </div>
+            
+            <button class="load-btn" id="loadImageBtn">
+                <i class="fas fa-upload"></i>
+                Cargar Imagen
+            </button>
+            
+            <div class="image-info" id="imageInfo"></div>
+        </div>
+        
+        <!-- Barra de Herramientas -->
+        <div class="toolbar">
+            <button class="tool-btn disabled" id="rotateBtn">
+                <i class="fas fa-redo-alt"></i>
+                <span>Rotar</span>
+            </button>
+            
+            <button class="tool-btn disabled" id="cropBtn">
+                <i class="fas fa-crop-alt"></i>
+                <span>Recortar</span>
+            </button>
+            
+            <button class="tool-btn disabled" id="resizeBtn">
+                <i class="fas fa-expand-alt"></i>
+                <span>Redimensionar</span>
+            </button>
+            
+            <button class="tool-btn disabled" id="saveBtn">
+                <i class="fas fa-save"></i>
+                <span>Guardar</span>
+            </button>
+        </div>
+        
+        <!-- Modal para Formato de Guardado -->
+        <div class="modal-overlay" id="saveModal">
+            <div class="modal">
+                <h2><i class="fas fa-save"></i> Guardar Imagen</h2>
+                
+                <div class="quality-control">
+                    <label>Calidad de compresión:</label>
+                    <input type="range" min="10" max="100" value="85" class="quality-slider" id="qualitySlider">
+                    <div class="quality-value" id="qualityValue">85%</div>
+                </div>
+                
+                <div class="format-options">
+                    <button class="format-btn jpg-btn" id="saveJpgBtn">
+                        <i class="fas fa-file-image"></i> Guardar como JPG
+                        <small>(Recomendado, menor tamaño)</small>
+                    </button>
+                    
+                    <button class="format-btn png-btn" id="savePngBtn">
+                        <i class="fas fa-file-image"></i> Guardar como PNG
+                        <small>(Alta calidad, tamaño mayor)</small>
+                    </button>
+                    
+                    <button class="modal-btn cancel-btn" id="cancelSave">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Modal para Redimensionar -->
+        <div class="modal-overlay" id="resizeModal">
+            <div class="modal">
+                <h2><i class="fas fa-expand-alt"></i> Redimensionar Imagen</h2>
+                <div class="modal-buttons">
+                    <button class="modal-btn size-btn" data-size="25">25%</button>
+                    <button class="modal-btn size-btn" data-size="50">50%</button>
+                    <button class="modal-btn size-btn" data-size="75">75%</button>
+                    <button class="modal-btn cancel-btn" id="cancelResize">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Spinner de Carga -->
+        <div class="spinner" id="spinner">
+            <div class="spinner-inner"></div>
+        </div>
+        
+        <!-- Toast de Notificación -->
+        <div class="toast" id="toast"></div>
+        
+        <!-- Input de archivo oculto -->
+        <input type="file" id="fileInput" accept="image/*" style="display: none;">
+    </div>
+
+    <script>
+        // Variables globales
+        let currentImage = null;
+        let originalImage = null;
+        let rotationAngle = 0;
+        let isCropMode = false;
+        let cropSelection = null;
+        let startX, startY, endX, endY;
+        let currentFilename = '';
+        let isSelecting = false;
+        let saveQuality = 85;
+        
+        // Elementos del DOM
+        const elements = {
+            loadImageBtn: document.getElementById('loadImageBtn'),
+            rotateBtn: document.getElementById('rotateBtn'),
+            cropBtn: document.getElementById('cropBtn'),
+            resizeBtn: document.getElementById('resizeBtn'),
+            saveBtn: document.getElementById('saveBtn'),
+            fileInput: document.getElementById('fileInput'),
+            currentImage: document.getElementById('currentImage'),
+            placeholder: document.getElementById('placeholder'),
+            imageInfo: document.getElementById('imageInfo'),
+            cropOverlay: document.getElementById('cropOverlay'),
+            resizeModal: document.getElementById('resizeModal'),
+            saveModal: document.getElementById('saveModal'),
+            spinner: document.getElementById('spinner'),
+            toast: document.getElementById('toast'),
+            cancelResize: document.getElementById('cancelResize')
+        };
+        
+        // URL del servidor
+        const serverUrl = window.location.origin;
+        
+        // Inicialización
+        function init() {
+            setupEventListeners();
+            setupQualitySlider();
+            updateUI();
+            showToast('Editor listo. Haz clic en "Cargar Imagen" para comenzar.', 'success');
+            console.log('✅ Editor inicializado correctamente');
+        }
+        
+        // Configurar event listeners
+        function setupEventListeners() {
+            console.log('🔧 Configurando event listeners...');
+            
+            // Botón principal para cargar imagen
+            elements.loadImageBtn.addEventListener('click', () => {
+                console.log('📂 Abriendo selector de archivos...');
+                elements.fileInput.click();
+            });
+            
+            // Botones de la barra de herramientas
+            elements.rotateBtn.addEventListener('click', rotateImage);
+            elements.cropBtn.addEventListener('click', toggleCropMode);
+            elements.resizeBtn.addEventListener('click', showResizeModal);
+            elements.saveBtn.addEventListener('click', () => showSaveModal());
+            
+            // Input de archivo
+            elements.fileInput.addEventListener('change', handleFileSelect);
+            
+            // Eventos para recorte
+            elements.cropOverlay.addEventListener('touchstart', startCropSelection);
+            elements.cropOverlay.addEventListener('touchmove', updateCropSelection);
+            elements.cropOverlay.addEventListener('touchend', endCropSelection);
+            
+            // Eventos para modal de redimensionar
+            document.querySelectorAll('.size-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const size = parseInt(btn.dataset.size);
+                    resizeImage(size);
+                });
+            });
+            
+            elements.cancelResize.addEventListener('click', () => {
+                elements.resizeModal.style.display = 'none';
+            });
+            
+            // Eventos para modal de guardado
+            document.getElementById('saveJpgBtn').addEventListener('click', saveAsJpg);
+            document.getElementById('savePngBtn').addEventListener('click', saveAsPng);
+            document.getElementById('cancelSave').addEventListener('click', () => {
+                elements.saveModal.style.display = 'none';
+            });
+            
+            // Cerrar modales al tocar fuera
+            [elements.resizeModal, elements.saveModal].forEach(modal => {
+                modal.addEventListener('click', (e) => {
+                    if (e.target === modal) {
+                        modal.style.display = 'none';
+                    }
+                });
+            });
+            
+            console.log('✅ Event listeners configurados');
+        }
+        
+        // Configurar slider de calidad
+        function setupQualitySlider() {
+            const slider = document.getElementById('qualitySlider');
+            const valueDisplay = document.getElementById('qualityValue');
+            
+            if (slider && valueDisplay) {
+                slider.addEventListener('input', function() {
+                    saveQuality = parseInt(this.value);
+                    valueDisplay.textContent = `${saveQuality}%`;
+                });
+            }
+        }
+        
+        // Mostrar modal de guardado
+        function showSaveModal() {
+            if (!currentImage) {
+                showToast('No hay imagen para guardar', 'warning');
+                return;
+            }
+            elements.saveModal.style.display = 'flex';
+        }
+        
+        // Mostrar modal de redimensionar
+        function showResizeModal() {
+            if (!currentImage) {
+                showToast('No hay imagen para redimensionar', 'warning');
+                return;
+            }
+            elements.resizeModal.style.display = 'flex';
+        }
+        
+        // Manejar selección de archivo
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            console.log('📄 Archivo seleccionado:', file ? file.name : 'Ninguno');
+            
+            if (!file) {
+                showToast('No se seleccionó ningún archivo', 'warning');
+                return;
+            }
+            
+            if (!file.type.startsWith('image/')) {
+                showToast('Por favor, selecciona un archivo de imagen válido', 'error');
+                return;
+            }
+            
+            currentFilename = file.name;
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                console.log('🖼️ Imagen cargada en memoria');
+                loadImage(e.target.result);
+            };
+            
+            reader.onerror = function(e) {
+                console.error('❌ Error al leer archivo:', e);
+                showToast('Error al leer el archivo de imagen', 'error');
+            };
+            
+            reader.readAsDataURL(file);
+        }
+        
+        // Cargar imagen en el visor
+        function loadImage(dataUrl) {
+            showSpinner(true);
+            
+            const img = new Image();
+            img.onload = function() {
+                console.log(`📐 Dimensiones de imagen: ${img.width}x${img.height}`);
+                
+                elements.currentImage.src = dataUrl;
+                elements.currentImage.style.display = 'block';
+                elements.placeholder.style.display = 'none';
+                elements.loadImageBtn.style.display = 'none'; // Ocultar botón de carga
+                
+                currentImage = elements.currentImage;
+                originalImage = dataUrl;
+                rotationAngle = 0;
+                
+                updateImageInfo(img.width, img.height);
+                updateUI();
+                showSpinner(false);
+                showToast('Imagen cargada correctamente', 'success');
+            };
+            
+            img.onerror = function() {
+                console.error('❌ Error al cargar la imagen');
+                showSpinner(false);
+                showToast('Error al cargar la imagen', 'error');
+            };
+            
+            img.src = dataUrl;
+        }
+        
+        // Rotar imagen 90 grados
+        function rotateImage() {
+            if (!currentImage) {
+                showToast('No hay imagen para rotar', 'warning');
+                return;
+            }
+            
+            console.log('🔄 Rotando imagen...');
+            rotationAngle = (rotationAngle + 90) % 360;
+            
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            const img = new Image();
+            img.onload = function() {
+                if (rotationAngle === 90 || rotationAngle === 270) {
+                    canvas.width = img.height;
+                    canvas.height = img.width;
+                } else {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                }
+                
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                ctx.translate(canvas.width / 2, canvas.height / 2);
+                ctx.rotate(rotationAngle * Math.PI / 180);
+                ctx.drawImage(img, -img.width / 2, -img.height / 2);
+                
+                currentImage.src = canvas.toDataURL('image/png');
+                updateImageInfo(canvas.width, canvas.height);
+                showToast(`Imagen rotada ${rotationAngle} grados`, 'success');
+            };
+            
+            img.src = currentImage.src;
+        }
+        
+        // Modo de recorte
+        function toggleCropMode() {
+            if (!currentImage) {
+                showToast('No hay imagen para recortar', 'warning');
+                return;
+            }
+            
+            isCropMode = !isCropMode;
+            console.log(isCropMode ? '✂️ Modo recorte activado' : '✂️ Modo recorte desactivado');
+            
+            if (isCropMode) {
+                elements.cropOverlay.style.display = 'block';
+                elements.cropBtn.style.background = '#e2e8f0';
+                showToast('Toca y arrastra para seleccionar área', 'success');
+            } else {
+                elements.cropOverlay.style.display = 'none';
+                elements.cropBtn.style.background = 'none';
+                removeCropSelection();
+                showToast('Modo recorte desactivado', 'warning');
+            }
+        }
+        
+        // Eliminar selección de recorte
+        function removeCropSelection() {
+            if (cropSelection) {
+                cropSelection.remove();
+                cropSelection = null;
+            }
+            isSelecting = false;
+        }
+        
+        // Comenzar selección de recorte
+        function startCropSelection(e) {
+            if (!isCropMode || !currentImage) return;
+            
+            e.preventDefault();
+            isSelecting = true;
+            const touch = e.touches[0];
+            const rect = elements.cropOverlay.getBoundingClientRect();
+            
+            startX = touch.clientX - rect.left;
+            startY = touch.clientY - rect.top;
+            
+            console.log(`📍 Inicio selección: X=${startX}, Y=${startY}`);
+            
+            removeCropSelection();
+            
+            cropSelection = document.createElement('div');
+            cropSelection.className = 'crop-selection';
+            cropSelection.style.left = startX + 'px';
+            cropSelection.style.top = startY + 'px';
+            cropSelection.style.width = '0px';
+            cropSelection.style.height = '0px';
+            
+            elements.cropOverlay.appendChild(cropSelection);
+        }
+        
+        // Actualizar selección de recorte
+        function updateCropSelection(e) {
+            if (!isCropMode || !cropSelection || !isSelecting) return;
+            
+            e.preventDefault();
+            const touch = e.touches[0];
+            const rect = elements.cropOverlay.getBoundingClientRect();
+            
+            endX = touch.clientX - rect.left;
+            endY = touch.clientY - rect.top;
+            
+            const width = Math.max(10, Math.abs(endX - startX));
+            const height = Math.max(10, Math.abs(endY - startY));
+            const left = Math.min(startX, endX);
+            const top = Math.min(startY, endY);
+            
+            // Limitar al tamaño del contenedor
+            const maxWidth = rect.width - left;
+            const maxHeight = rect.height - top;
+            
+            cropSelection.style.left = Math.max(0, left) + 'px';
+            cropSelection.style.top = Math.max(0, top) + 'px';
+            cropSelection.style.width = Math.min(width, maxWidth) + 'px';
+            cropSelection.style.height = Math.min(height, maxHeight) + 'px';
+        }
+        
+        // Finalizar selección de recorte
+        function endCropSelection() {
+            if (!isCropMode || !cropSelection || !isSelecting) return;
+            
+            isSelecting = false;
+            const rect = cropSelection.getBoundingClientRect();
+            const imageRect = currentImage.getBoundingClientRect();
+            const overlayRect = elements.cropOverlay.getBoundingClientRect();
+            
+            // Verificar que la selección sea válida
+            if (rect.width < 20 || rect.height < 20) {
+                showToast('Selección muy pequeña. Intenta de nuevo.', 'warning');
+                removeCropSelection();
+                return;
+            }
+            
+            // Calcular proporciones
+            const scaleX = currentImage.naturalWidth / imageRect.width;
+            const scaleY = currentImage.naturalHeight / imageRect.height;
+            
+            const cropX = (rect.left - imageRect.left) * scaleX;
+            const cropY = (rect.top - imageRect.top) * scaleY;
+            const cropWidth = rect.width * scaleX;
+            const cropHeight = rect.height * scaleY;
+            
+            console.log(`✂️ Recortando: X=${cropX}, Y=${cropY}, W=${cropWidth}, H=${cropHeight}`);
+            
+            // Preguntar al usuario si quiere aplicar el recorte
+            if (confirm('¿Aplicar recorte a la imagen seleccionada?')) {
+                applyCrop(cropX, cropY, cropWidth, cropHeight);
+            } else {
+                showToast('Recorte cancelado', 'warning');
+            }
+            
+            // Salir del modo recorte
+            toggleCropMode();
+        }
+        
+        // Aplicar recorte a la imagen
+        function applyCrop(x, y, width, height) {
+            if (!currentImage) return;
+            
+            showSpinner(true);
+            
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            canvas.width = width;
+            canvas.height = height;
+            
+            const img = new Image();
+            img.onload = function() {
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                ctx.drawImage(img, x, y, width, height, 0, 0, width, height);
+                
+                currentImage.src = canvas.toDataURL('image/png');
+                updateImageInfo(width, height);
+                showSpinner(false);
+                showToast('Imagen recortada correctamente', 'success');
+            };
+            
+            img.src = currentImage.src;
+        }
+        
+        // Redimensionar imagen
+        function resizeImage(percentage) {
+            if (!currentImage) return;
+            
+            console.log(`📏 Redimensionando al ${percentage}%`);
+            elements.resizeModal.style.display = 'none'; // Cerrar modal
+            showSpinner(true);
+            
+            const img = new Image();
+            img.onload = function() {
+                const newWidth = Math.round(img.width * percentage / 100);
+                const newHeight = Math.round(img.height * percentage / 100);
+                
+                console.log(`📐 Nuevo tamaño: ${newWidth}x${newHeight}`);
+                
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                canvas.width = newWidth;
+                canvas.height = newHeight;
+                
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                ctx.drawImage(img, 0, 0, newWidth, newHeight);
+                
+                currentImage.src = canvas.toDataURL('image/png');
+                updateImageInfo(newWidth, newHeight);
+                showSpinner(false);
+                showToast(`Imagen redimensionada al ${percentage}%`, 'success');
+            };
+            
+            img.onerror = function() {
+                console.error('❌ Error al redimensionar imagen');
+                showSpinner(false);
+                showToast('Error al redimensionar la imagen', 'error');
+            };
+            
+            img.src = currentImage.src;
+        }
+        
+        // Guardar como JPG
+        async function saveAsJpg() {
+            if (!currentImage) return;
+            
+            console.log('💾 Guardando como JPG...');
+            showSpinner(true);
+            elements.saveModal.style.display = 'none';
+            
+            try {
+                // Generar nombre de archivo
+                const timestamp = new Date().getTime();
+                const originalName = currentFilename.replace(/\.[^/.]+$/, "") || 'imagen';
+                const newFilename = `${originalName}_editada_${timestamp}.jpg`;
+                
+                // Convertir imagen a Canvas y luego a JPG
+                const canvas = await imageToCanvas(currentImage);
+                const jpgDataUrl = canvas.toDataURL('image/jpeg', saveQuality / 100);
+                
+                // Convertir a Blob
+                const blob = await dataURLToBlob(jpgDataUrl);
+                
+                // Calcular tamaño estimado
+                const estimatedSizeKB = Math.round((jpgDataUrl.length * 3) / 4 / 1024);
+                console.log(`📊 Tamaño estimado JPG: ${estimatedSizeKB} KB`);
+                
+                // Enviar al servidor
+                await sendToServer(blob, newFilename, 'jpg');
+                
+            } catch (error) {
+                console.error('❌ Error al guardar JPG:', error);
+                showSpinner(false);
+                showToast('Error al guardar la imagen', 'error');
+            }
+        }
+        
+        // Guardar como PNG
+        async function saveAsPng() {
+            if (!currentImage) return;
+            
+            console.log('💾 Guardando como PNG...');
+            showSpinner(true);
+            elements.saveModal.style.display = 'none';
+            
+            try {
+                // Generar nombre de archivo
+                const timestamp = new Date().getTime();
+                const originalName = currentFilename.replace(/\.[^/.]+$/, "") || 'imagen';
+                const newFilename = `${originalName}_editada_${timestamp}.png`;
+                
+                // Convertir imagen a Canvas
+                const canvas = await imageToCanvas(currentImage);
+                const pngDataUrl = canvas.toDataURL('image/png');
+                
+                // Convertir a Blob
+                const blob = await dataURLToBlob(pngDataUrl);
+                
+                // Calcular tamaño estimado
+                const estimatedSizeKB = Math.round((pngDataUrl.length * 3) / 4 / 1024);
+                console.log(`📊 Tamaño estimado PNG: ${estimatedSizeKB} KB`);
+                
+                // Si es muy grande, sugerir JPG
+                if (estimatedSizeKB > 5000) { // >5MB
+                    if (confirm(`La imagen PNG será muy grande (~${Math.round(estimatedSizeKB/1024)}MB). ¿Prefieres guardar como JPG para reducir el tamaño?`)) {
+                        saveAsJpg();
+                        return;
+                    }
+                }
+                
+                // Enviar al servidor
+                await sendToServer(blob, newFilename, 'png');
+                
+            } catch (error) {
+                console.error('❌ Error al guardar PNG:', error);
+                showSpinner(false);
+                showToast('Error al guardar la imagen', 'error');
+            }
+        }
+        
+        // Función auxiliar para convertir imagen a canvas
+        function imageToCanvas(imgElement) {
+            return new Promise((resolve) => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                
+                canvas.width = imgElement.naturalWidth || imgElement.width;
+                canvas.height = imgElement.naturalHeight || imgElement.height;
+                
+                // Configurar calidad de renderizado
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                
+                // Dibujar imagen
+                ctx.drawImage(imgElement, 0, 0, canvas.width, canvas.height);
+                
+                resolve(canvas);
+            });
+        }
+        
+        // Función para enviar al servidor
+        async function sendToServer(blob, filename, format) {
+            const formData = new FormData();
+            formData.append('image', blob, filename);
+            formData.append('filename', filename);
+            formData.append('format', format);
+            formData.append('quality', saveQuality.toString());
+            
+            try {
+                // Enviar al servidor
+                const response = await fetch(`${serverUrl}/guardar-imagen`, {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Error HTTP: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showSpinner(false);
+                    
+                    // Mostrar información detallada
+                    const sizeMB = (result.size / 1024 / 1024).toFixed(2);
+                    showToast(`✅ ${format.toUpperCase()} guardado: ${result.filename} (${sizeMB} MB)`, 'success');
+                    console.log(`✅ Guardado exitoso: ${result.path} (${sizeMB} MB)`);
+                    
+                    // Opción para cargar nueva imagen
+                    if (confirm(`Imagen guardada exitosamente (${sizeMB} MB). ¿Deseas cargar otra imagen?`)) {
+                        resetEditor();
+                    }
+                } else {
+                    throw new Error(result.message || 'Error desconocido del servidor');
+                }
+                
+            } catch (error) {
+                console.error('❌ Error al guardar en servidor:', error);
+                showSpinner(false);
+                
+                // Fallback: descarga directa
+                const fallbackFilename = filename || `imagen_editada_${Date.now()}.${format}`;
+                const link = document.createElement('a');
+                link.download = fallbackFilename;
+                link.href = URL.createObjectURL(blob);
+                link.style.display = 'none';
+                
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(link.href);
+                
+                showToast(`📥 Descargada como: ${fallbackFilename}`, 'warning');
+            }
+        }
+        
+        // Función auxiliar para convertir dataURL a Blob
+        function dataURLToBlob(dataURL) {
+            return new Promise((resolve, reject) => {
+                try {
+                    const arr = dataURL.split(',');
+                    const mime = arr[0].match(/:(.*?);/)[1];
+                    const bstr = atob(arr[1]);
+                    let n = bstr.length;
+                    const u8arr = new Uint8Array(n);
+                    
+                    while (n--) {
+                        u8arr[n] = bstr.charCodeAt(n);
+                    }
+                    
+                    resolve(new Blob([u8arr], { type: mime }));
+                } catch (error) {
+                    reject(error);
+                }
+            });
+        }
+        
+        // Resetear editor
+        function resetEditor() {
+            currentImage = null;
+            originalImage = null;
+            rotationAngle = 0;
+            isCropMode = false;
+            
+            elements.currentImage.style.display = 'none';
+            elements.currentImage.src = '';
+            elements.placeholder.style.display = 'block';
+            elements.loadImageBtn.style.display = 'flex';
+            elements.imageInfo.textContent = '';
+            elements.fileInput.value = ''; // Limpiar input file
+            
+            updateUI();
+            showToast('Listo para cargar una nueva imagen', 'success');
+        }
+        
+        // Actualizar información de la imagen
+        function updateImageInfo(width, height) {
+            if (!currentImage) return;
+            
+            const dataUrl = currentImage.src;
+            const sizeKB = dataUrl.startsWith('data:') 
+                ? Math.round((dataUrl.length * 3) / 4 / 1024)
+                : 0;
+            
+            elements.imageInfo.textContent = 
+                `${width} × ${height} px | ${sizeKB} KB | ${rotationAngle}°`;
+        }
+        
+        // Actualizar estado de la UI
+        function updateUI() {
+            const hasImage = !!currentImage;
+            
+            elements.rotateBtn.classList.toggle('disabled', !hasImage);
+            elements.cropBtn.classList.toggle('disabled', !hasImage);
+            elements.resizeBtn.classList.toggle('disabled', !hasImage);
+            elements.saveBtn.classList.toggle('disabled', !hasImage);
+            
+            // Cambiar color del botón activo
+            elements.cropBtn.style.background = isCropMode ? '#e2e8f0' : 'none';
+        }
+        
+        // Mostrar/Ocultar spinner
+        function showSpinner(show) {
+            elements.spinner.style.display = show ? 'block' : 'none';
+        }
+        
+        // Mostrar notificación toast
+        function showToast(message, type = 'success') {
+            elements.toast.textContent = message;
+            elements.toast.className = 'toast';
+            
+            if (type === 'error') {
+                elements.toast.classList.add('error');
+            } else if (type === 'warning') {
+                elements.toast.classList.add('warning');
+            }
+            
+            elements.toast.style.display = 'block';
+            
+            setTimeout(() => {
+                elements.toast.style.display = 'none';
+            }, 3000);
+            
+            console.log(`📢 Toast [${type}]: ${message}`);
+        }
+        
+        // Inicializar aplicación
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
